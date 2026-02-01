@@ -1092,6 +1092,54 @@
       .forEach((input) => input.closest('td')?.remove());
   };
 
+  const addCpwFieldColumn = (field) => {
+    if (<%= step.step_number %> !== 4) return;
+    if (!field?.id) return;
+    if (document.querySelector(`th[data-extra-field][data-field-id="${field.id}"]`)) return;
+    const headerRow = document.querySelector('.table-scroll thead tr');
+    const actionHeader = headerRow?.querySelector('th:last-child');
+    if (!headerRow || !actionHeader) return;
+    const th = document.createElement('th');
+    th.dataset.extraField = '1';
+    th.dataset.fieldId = String(field.id);
+    th.dataset.fieldType = field.field_type || 'number';
+    th.textContent = field.label || field.code || 'Field';
+    if (field.unit) {
+      const unitEl = document.createElement('span');
+      unitEl.className = 'small-note';
+      unitEl.textContent = ` ${field.unit}`;
+      th.appendChild(unitEl);
+    }
+    headerRow.insertBefore(th, actionHeader);
+
+    document.querySelectorAll('tbody tr[data-run-row]').forEach((row) => {
+      const td = document.createElement('td');
+      if (field.field_type === 'boolean') {
+        td.innerHTML = `<input type="checkbox" data-field-id="${field.id}" data-field-type="boolean">`;
+      } else if (field.field_type === 'text') {
+        td.innerHTML = `<input type="text" data-field-id="${field.id}" data-field-type="text" value="">`;
+      } else {
+        td.innerHTML = `<input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value="">`;
+      }
+      const actionCell = row.querySelector('[data-run-delete]')?.closest('td');
+      if (actionCell) {
+        row.insertBefore(td, actionCell);
+      } else {
+        row.appendChild(td);
+      }
+    });
+  };
+
+  const removeCpwFieldColumn = (fieldId) => {
+    if (<%= step.step_number %> !== 4) return;
+    document
+      .querySelectorAll(`th[data-extra-field][data-field-id="${fieldId}"]`)
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll(`tbody tr[data-run-row] input[data-field-id="${fieldId}"]`)
+      .forEach((input) => input.closest('td')?.remove());
+  };
+
   const scheduleSave = (row) => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
@@ -1220,6 +1268,11 @@
       <td><input data-field-unit value="${data.unit || ''}"></td>
       <td><input data-field-group value="${data.group_label || ''}"></td>
       <td><input type="checkbox" data-field-required ${data.required ? 'checked' : ''}></td>
+      <td>
+        <button class="icon-button danger" type="button" data-field-delete title="Delete field">
+          <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+        </button>
+      </td>
     `;
     fieldBody.appendChild(row);
   };
@@ -2826,6 +2879,9 @@
     if (stepNumber === 1) {
       addRheoFieldColumn(data);
     }
+    if (stepNumber === 4) {
+      addCpwFieldColumn(data);
+    }
   });
 
   customForm?.addEventListener('submit', async (event) => {
@@ -2957,6 +3013,15 @@
         unit: payload.get('unit')
       });
     }
+    if (stepNumber === 4) {
+      addCpwFieldColumn({
+        id: data.id,
+        code: payload.get('code'),
+        label: payload.get('label'),
+        field_type: payload.get('field_type'),
+        unit: payload.get('unit')
+      });
+    }
     customForm.reset();
   });
 
@@ -2985,6 +3050,7 @@
     }).then(() => {
       row?.remove();
       removeRheoFieldColumn(fieldId);
+      removeCpwFieldColumn(fieldId);
     });
   });
 
