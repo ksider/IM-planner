@@ -21,27 +21,30 @@ export type RunRow = {
   run_order: number;
   run_code: string;
   recipe_id: number | null;
+  doe_id: number | null;
   exclude_from_analysis: number;
   done: number;
   values: Record<number, number | null>;
   tags: Record<number, string[]>;
 };
 
-export function loadRuns(db: Db, experimentId: number): RunRow[] {
+export function loadRuns(db: Db, doeId: number): RunRow[] {
   const rows = db
     .prepare(
       `SELECT r.id, r.run_order, r.run_code, r.recipe_id, r.exclude_from_analysis, r.done,
+              r.doe_id,
               rv.param_def_id, rv.value_real, rv.value_tags_json
        FROM runs r
        LEFT JOIN run_values rv ON rv.run_id = r.id
-       WHERE r.experiment_id = ?
+       WHERE r.doe_id = ?
        ORDER BY r.run_order`
     )
-    .all(experimentId) as Array<{
+    .all(doeId) as Array<{
     id: number;
     run_order: number;
     run_code: string;
     recipe_id: number | null;
+    doe_id: number | null;
     exclude_from_analysis: number;
     done: number;
     param_def_id: number | null;
@@ -57,6 +60,7 @@ export function loadRuns(db: Db, experimentId: number): RunRow[] {
         run_order: row.run_order,
         run_code: row.run_code,
         recipe_id: row.recipe_id,
+        doe_id: row.doe_id,
         exclude_from_analysis: row.exclude_from_analysis,
         done: row.done,
         values: {},

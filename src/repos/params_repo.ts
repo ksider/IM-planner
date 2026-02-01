@@ -16,6 +16,7 @@ export type ParamDefinition = {
 export type ParamConfig = {
   id: number;
   experiment_id: number;
+  doe_id: number | null;
   param_def_id: number;
   active: number;
   mode: "FIXED" | "RANGE" | "LIST";
@@ -50,22 +51,43 @@ export function listParamDefinitionsByKind(
     .all(kind, experimentId) as ParamDefinition[];
 }
 
-export function listParamConfigs(db: Db, experimentId: number): ParamConfig[] {
-  return db
-    .prepare("SELECT * FROM param_configs WHERE experiment_id = ? ORDER BY id")
-    .all(experimentId) as ParamConfig[];
-}
-
-export function getParamConfig(db: Db, experimentId: number, paramDefId: number): ParamConfig | undefined {
+export function listGlobalParamDefinitions(db: Db): ParamDefinition[] {
   return db
     .prepare(
-      "SELECT * FROM param_configs WHERE experiment_id = ? AND param_def_id = ?"
+      `SELECT * FROM param_definitions
+       WHERE scope = 'GLOBAL'
+       ORDER BY group_label, id`
     )
-    .get(experimentId, paramDefId) as ParamConfig | undefined;
+    .all() as ParamDefinition[];
+}
+
+export function getParamDefinition(db: Db, id: number): ParamDefinition | undefined {
+  return db.prepare("SELECT * FROM param_definitions WHERE id = ?").get(id) as
+    | ParamDefinition
+    | undefined;
+}
+
+export function listParamConfigs(db: Db, experimentId: number, doeId: number): ParamConfig[] {
+  return db
+    .prepare("SELECT * FROM param_configs WHERE experiment_id = ? AND doe_id = ? ORDER BY id")
+    .all(experimentId, doeId) as ParamConfig[];
+}
+
+export function getParamConfig(
+  db: Db,
+  experimentId: number,
+  doeId: number,
+  paramDefId: number
+): ParamConfig | undefined {
+  return db
+    .prepare(
+      "SELECT * FROM param_configs WHERE experiment_id = ? AND doe_id = ? AND param_def_id = ?"
+    )
+    .get(experimentId, doeId, paramDefId) as ParamConfig | undefined;
 }
 
 export function upsertParamConfig(db: Db, config: Omit<ParamConfig, "id">) {
-  const existing = getParamConfig(db, config.experiment_id, config.param_def_id);
+  const existing = getParamConfig(db, config.experiment_id, config.doe_id ?? 0, config.param_def_id);
   if (existing) {
     db.prepare(
       `UPDATE param_configs
@@ -84,10 +106,11 @@ export function upsertParamConfig(db: Db, config: Omit<ParamConfig, "id">) {
   } else {
     db.prepare(
       `INSERT INTO param_configs
-       (experiment_id, param_def_id, active, mode, fixed_value_real, range_min_real, range_max_real, list_json, level_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (experiment_id, doe_id, param_def_id, active, mode, fixed_value_real, range_min_real, range_max_real, list_json, level_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       config.experiment_id,
+      config.doe_id,
       config.param_def_id,
       config.active,
       config.mode,
@@ -100,11 +123,10 @@ export function upsertParamConfig(db: Db, config: Omit<ParamConfig, "id">) {
   }
 }
 
-export function deleteParamConfig(db: Db, experimentId: number, paramDefId: number) {
-  db.prepare("DELETE FROM param_configs WHERE experiment_id = ? AND param_def_id = ?").run(
-    experimentId,
-    paramDefId
-  );
+export function deleteParamConfig(db: Db, experimentId: number, doeId: number, paramDefId: number) {
+  db.prepare(
+    "DELETE FROM param_configs WHERE experiment_id = ? AND doe_id = ? AND param_def_id = ?"
+  ).run(experimentId, doeId, paramDefId);
 }
 
 export function createParamDefinition(db: Db, def: Omit<ParamDefinition, "id">): number {
@@ -133,4 +155,34 @@ export function updateAllowedValues(db: Db, paramDefId: number, allowedValuesJso
     allowedValuesJson,
     paramDefId
   );
+}
+
+export function updateParamDefinition(
+  db: Db,
+  id: number,
+  updates: Partial<Omit<ParamDefinition, "id" | "scope" | "experiment_id">>
+) {
+  const current = getParamDefinition(db, id);
+  if (!current || current.scope !== "GLOBAL") return;
+  const next = { ...current, ...updates };
+  db.prepare(
+    `UPDATE param_definitions
+     SET code = ?, label = ?, unit = ?, field_kind = ?, field_type = ?, group_label = ?, allowed_values_json = ?
+     WHERE id = ?`
+  ).run(
+    next.code,
+    next.label,
+    next.unit ?? null,
+    next.field_kind,
+    next.field_type,
+    next.group_label ?? null,
+    next.allowed_values_json ?? null,
+    id
+  );
+}
+
+export function deleteParamDefinition(db: Db, id: number) {
+  const current = getParamDefinition(db, id);
+  if (!current || current.scope !== "GLOBAL") return;
+  db.prepare("DELETE FROM param_definitions WHERE id = ?").run(id);
 }

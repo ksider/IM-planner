@@ -104,8 +104,10 @@ function initDb(db: Db) {
       FOREIGN KEY (param_def_id) REFERENCES param_definitions(id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS design_metadata (
-      experiment_id INTEGER PRIMARY KEY,
+      experiment_id INTEGER NOT NULL,
+      doe_id INTEGER NOT NULL,
       json_blob TEXT NOT NULL,
+      PRIMARY KEY (experiment_id, doe_id),
       FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS analysis_fields (
@@ -133,6 +135,82 @@ function initDb(db: Db) {
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
       FOREIGN KEY (field_id) REFERENCES analysis_fields(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS doe_studies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      experiment_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      design_type TEXT NOT NULL,
+      seed INTEGER NOT NULL,
+      center_points INTEGER DEFAULT 3,
+      max_runs INTEGER DEFAULT 200,
+      replicate_count INTEGER DEFAULT 1,
+      recipe_as_block INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS qual_steps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      experiment_id INTEGER NOT NULL,
+      step_number INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'DRAFT',
+      UNIQUE(experiment_id, step_number),
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS qual_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      experiment_id INTEGER NOT NULL,
+      step_id INTEGER NOT NULL,
+      run_order INTEGER NOT NULL,
+      run_code TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      exclude_from_analysis INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE,
+      FOREIGN KEY (step_id) REFERENCES qual_steps(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS qual_fields (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      experiment_id INTEGER NOT NULL,
+      step_id INTEGER NOT NULL,
+      code TEXT NOT NULL,
+      label TEXT NOT NULL,
+      field_type TEXT NOT NULL,
+      unit TEXT,
+      group_label TEXT,
+      required INTEGER NOT NULL DEFAULT 0,
+      is_enabled INTEGER NOT NULL DEFAULT 1,
+      is_derived INTEGER NOT NULL DEFAULT 0,
+      allowed_values_json TEXT,
+      derived_formula_code TEXT,
+      UNIQUE(step_id, code),
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE,
+      FOREIGN KEY (step_id) REFERENCES qual_steps(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS qual_run_values (
+      run_id INTEGER NOT NULL,
+      field_id INTEGER NOT NULL,
+      value_real REAL,
+      value_text TEXT,
+      value_tags_json TEXT,
+      PRIMARY KEY (run_id, field_id),
+      FOREIGN KEY (run_id) REFERENCES qual_runs(id) ON DELETE CASCADE,
+      FOREIGN KEY (field_id) REFERENCES qual_fields(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS qual_step_summary (
+      experiment_id INTEGER NOT NULL,
+      step_number INTEGER NOT NULL,
+      summary_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (experiment_id, step_number),
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS qual_step_settings (
+      experiment_id INTEGER NOT NULL,
+      step_number INTEGER NOT NULL,
+      settings_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (experiment_id, step_number),
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
   `);
 
   // Safe migrations for new columns.
@@ -153,6 +231,41 @@ function initDb(db: Db) {
   }
   if (!hasColumn(db, "analysis_fields", "is_active")) {
     db.exec("ALTER TABLE analysis_fields ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!hasColumn(db, "analysis_fields", "doe_id")) {
+    db.exec("ALTER TABLE analysis_fields ADD COLUMN doe_id INTEGER");
+  }
+  if (!hasColumn(db, "param_configs", "doe_id")) {
+    db.exec("ALTER TABLE param_configs ADD COLUMN doe_id INTEGER");
+  }
+  if (!hasColumn(db, "design_metadata", "doe_id")) {
+    db.exec("ALTER TABLE design_metadata ADD COLUMN doe_id INTEGER");
+  }
+  const designMetaInfo = db
+    .prepare("PRAGMA table_info(design_metadata)")
+    .all() as Array<{ name: string; pk: number }>;
+  const designMetaPkColumns = designMetaInfo.filter((col) => col.pk > 0).map((col) => col.name);
+  if (
+    designMetaPkColumns.length === 1 &&
+    designMetaPkColumns[0] === "experiment_id" &&
+    hasColumn(db, "design_metadata", "doe_id")
+  ) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS design_metadata_new (
+        experiment_id INTEGER NOT NULL,
+        doe_id INTEGER NOT NULL,
+        json_blob TEXT NOT NULL,
+        PRIMARY KEY (experiment_id, doe_id),
+        FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+      );
+      INSERT INTO design_metadata_new (experiment_id, doe_id, json_blob)
+      SELECT experiment_id, COALESCE(doe_id, 0) as doe_id, json_blob FROM design_metadata;
+      DROP TABLE design_metadata;
+      ALTER TABLE design_metadata_new RENAME TO design_metadata;
+    `);
+  }
+  if (!hasColumn(db, "runs", "doe_id")) {
+    db.exec("ALTER TABLE runs ADD COLUMN doe_id INTEGER");
   }
 
   const standardFields: Array<{
@@ -293,6 +406,57 @@ function initDb(db: Db) {
         row.value_text,
         row.value_tags_json
       );
+    }
+  }
+
+  // DOE migration: create default DOE per experiment and attach existing DOE data.
+  const doeCount = db.prepare("SELECT COUNT(*) as count FROM doe_studies").get() as { count: number };
+  if (doeCount.count === 0) {
+    const experiments = db
+      .prepare("SELECT id, design_type, seed, center_points, max_runs, replicate_count, recipe_as_block FROM experiments")
+      .all() as Array<{
+      id: number;
+      design_type: string;
+      seed: number;
+      center_points: number;
+      max_runs: number;
+      replicate_count: number;
+      recipe_as_block: number;
+    }>;
+    const insertDoe = db.prepare(
+      `INSERT INTO doe_studies
+       (experiment_id, name, design_type, seed, center_points, max_runs, replicate_count, recipe_as_block, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const updateRuns = db.prepare("UPDATE runs SET doe_id = ? WHERE experiment_id = ? AND doe_id IS NULL");
+    const updateConfigs = db.prepare(
+      "UPDATE param_configs SET doe_id = ? WHERE experiment_id = ? AND doe_id IS NULL"
+    );
+    const updateMeta = db.prepare(
+      "UPDATE design_metadata SET doe_id = ? WHERE experiment_id = ? AND (doe_id IS NULL OR doe_id = 0)"
+    );
+    const updateAnalysis = db.prepare(
+      "UPDATE analysis_fields SET scope_type = 'DOE', scope_id = ?, doe_id = ? WHERE scope_type = 'EXPERIMENT' AND scope_id = ?"
+    );
+
+    const now = new Date().toISOString();
+    for (const exp of experiments) {
+      const res = insertDoe.run(
+        exp.id,
+        "DOE 1",
+        exp.design_type,
+        exp.seed,
+        exp.center_points ?? 3,
+        exp.max_runs ?? 200,
+        exp.replicate_count ?? 1,
+        exp.recipe_as_block ?? 0,
+        now
+      );
+      const doeId = Number(res.lastInsertRowid);
+      updateRuns.run(doeId, exp.id);
+      updateConfigs.run(doeId, exp.id);
+      updateMeta.run(doeId, exp.id);
+      updateAnalysis.run(doeId, doeId, exp.id);
     }
   }
 }

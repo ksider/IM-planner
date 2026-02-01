@@ -23,12 +23,13 @@ export function createRunsRouter(db: Db) {
 
     const params = listParamDefinitions(db, run.experiment_id);
     const inputParams = listParamDefinitionsByKind(db, run.experiment_id, "INPUT");
-    const configs = listParamConfigs(db, run.experiment_id);
+    const doeId = run.doe_id ?? 0;
+    const configs = listParamConfigs(db, run.experiment_id, doeId);
     const activeSet = new Set(
       configs.filter((cfg) => cfg.active === 1).map((cfg) => cfg.param_def_id)
     );
     const activeInputParams = inputParams.filter((param) => activeSet.has(param.id));
-    const analysisFields = listActiveAnalysisFields(db, run.experiment_id);
+    const analysisFields = listActiveAnalysisFields(db, doeId);
     const analysisValues = listAnalysisRunValuesByRunId(db, run.id);
     const analysisValueMap = new Map(analysisValues.map((row) => [row.field_id, row]));
     const analysisFieldsWithOptions = analysisFields.map((field) => {
@@ -54,7 +55,7 @@ export function createRunsRouter(db: Db) {
     const valueMap = new Map(values.map((value) => [value.param_def_id, value]));
     const recipe = run.recipe_id ? getRecipe(db, run.recipe_id) : null;
     const components = run.recipe_id ? getRecipeComponents(db, run.recipe_id) : [];
-    const { prevId, nextId } = getNextPrevRunIds(db, run.experiment_id, run.run_order);
+    const { prevId, nextId } = getNextPrevRunIds(db, doeId, run.run_order);
 
     res.render("run_detail", {
       run,
@@ -79,7 +80,8 @@ export function createRunsRouter(db: Db) {
     const run = getRun(db, runId);
     if (!run) return res.status(404).send("Run not found");
 
-    const analysisFields = listActiveAnalysisFields(db, run.experiment_id);
+    const doeId = run.doe_id ?? 0;
+    const analysisFields = listActiveAnalysisFields(db, doeId);
     for (const field of analysisFields) {
       const fieldName = `analysis_${field.id}`;
       if (!Object.prototype.hasOwnProperty.call(req.body, fieldName)) continue;

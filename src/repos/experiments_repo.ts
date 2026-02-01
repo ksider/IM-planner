@@ -25,6 +25,31 @@ export function deleteExperiment(db: Db, id: number) {
   db.prepare("DELETE FROM experiments WHERE id = ?").run(id);
 }
 
+export function updateExperiment(
+  db: Db,
+  id: number,
+  updates: Partial<Omit<Experiment, "id" | "created_at">>
+) {
+  const current = getExperiment(db, id);
+  if (!current) return;
+  const next = { ...current, ...updates };
+  db.prepare(
+    `UPDATE experiments
+     SET name = ?, design_type = ?, seed = ?, notes = ?, center_points = ?, max_runs = ?, replicate_count = ?, recipe_as_block = ?
+     WHERE id = ?`
+  ).run(
+    next.name,
+    next.design_type,
+    next.seed,
+    next.notes ?? null,
+    next.center_points ?? 3,
+    next.max_runs ?? 200,
+    next.replicate_count ?? 1,
+    next.recipe_as_block ?? 0,
+    id
+  );
+}
+
 export function createExperiment(
   db: Db,
   data: Omit<Experiment, "id" | "created_at">
@@ -71,26 +96,35 @@ export function getExperimentRecipes(db: Db, experimentId: number): number[] {
   return rows.map((row) => row.recipe_id);
 }
 
-export function upsertDesignMetadata(db: Db, experimentId: number, jsonBlob: string) {
+export function upsertDesignMetadata(
+  db: Db,
+  experimentId: number,
+  doeId: number,
+  jsonBlob: string
+) {
   const existing = db
-    .prepare("SELECT experiment_id FROM design_metadata WHERE experiment_id = ?")
-    .get(experimentId) as { experiment_id: number } | undefined;
+    .prepare("SELECT experiment_id FROM design_metadata WHERE experiment_id = ? AND doe_id = ?")
+    .get(experimentId, doeId) as { experiment_id: number } | undefined;
   if (existing) {
-    db.prepare("UPDATE design_metadata SET json_blob = ? WHERE experiment_id = ?").run(
+    db.prepare(
+      "UPDATE design_metadata SET json_blob = ? WHERE experiment_id = ? AND doe_id = ?"
+    ).run(
       jsonBlob,
-      experimentId
+      experimentId,
+      doeId
     );
   } else {
-    db.prepare("INSERT INTO design_metadata (experiment_id, json_blob) VALUES (?, ?)").run(
+    db.prepare("INSERT INTO design_metadata (experiment_id, doe_id, json_blob) VALUES (?, ?, ?)").run(
       experimentId,
+      doeId,
       jsonBlob
     );
   }
 }
 
-export function getDesignMetadata(db: Db, experimentId: number): string | null {
+export function getDesignMetadata(db: Db, experimentId: number, doeId: number): string | null {
   const row = db
-    .prepare("SELECT json_blob FROM design_metadata WHERE experiment_id = ?")
-    .get(experimentId) as { json_blob: string } | undefined;
+    .prepare("SELECT json_blob FROM design_metadata WHERE experiment_id = ? AND doe_id = ?")
+    .get(experimentId, doeId) as { json_blob: string } | undefined;
   return row?.json_blob ?? null;
 }

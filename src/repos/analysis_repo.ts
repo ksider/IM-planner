@@ -2,7 +2,7 @@ import type { Db } from "../db.js";
 
 export type AnalysisField = {
   id: number;
-  scope_type: "GLOBAL" | "EXPERIMENT";
+  scope_type: "GLOBAL" | "DOE";
   scope_id: number | null;
   code: string;
   label: string;
@@ -32,49 +32,50 @@ export function listStandardAnalysisFields(db: Db): AnalysisField[] {
     .all() as AnalysisField[];
 }
 
-export function listExperimentAnalysisFields(db: Db, experimentId: number): AnalysisField[] {
+export function listExperimentAnalysisFields(db: Db, doeId: number): AnalysisField[] {
   return db
     .prepare(
       `SELECT * FROM analysis_fields
-       WHERE scope_type = 'EXPERIMENT' AND scope_id = ?
+       WHERE scope_type = 'DOE' AND scope_id = ?
        ORDER BY COALESCE(group_label, ''), label, id`
     )
-    .all(experimentId) as AnalysisField[];
+    .all(doeId) as AnalysisField[];
 }
 
-export function listActiveAnalysisFields(db: Db, experimentId: number): AnalysisField[] {
+export function listActiveAnalysisFields(db: Db, doeId: number): AnalysisField[] {
   return db
     .prepare(
       `SELECT * FROM analysis_fields
-       WHERE scope_type = 'EXPERIMENT' AND scope_id = ? AND is_active = 1
+       WHERE scope_type = 'DOE' AND scope_id = ? AND is_active = 1
        ORDER BY COALESCE(group_label, ''), label, id`
     )
-    .all(experimentId) as AnalysisField[];
+    .all(doeId) as AnalysisField[];
 }
 
 export function findExperimentAnalysisFieldByCode(
   db: Db,
-  experimentId: number,
+  doeId: number,
   code: string
 ): AnalysisField | undefined {
   return db
     .prepare(
       `SELECT * FROM analysis_fields
-       WHERE scope_type = 'EXPERIMENT' AND scope_id = ? AND code = ?`
+       WHERE scope_type = 'DOE' AND scope_id = ? AND code = ?`
     )
-    .get(experimentId, code) as AnalysisField | undefined;
+    .get(doeId, code) as AnalysisField | undefined;
 }
 
 export function insertAnalysisField(db: Db, field: Omit<AnalysisField, "id">) {
   return db
     .prepare(
       `INSERT INTO analysis_fields
-       (scope_type, scope_id, code, label, field_type, unit, group_label, allowed_values_json, is_standard, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (scope_type, scope_id, doe_id, code, label, field_type, unit, group_label, allowed_values_json, is_standard, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       field.scope_type,
       field.scope_id,
+      field.scope_type === "DOE" ? field.scope_id : null,
       field.code,
       field.label,
       field.field_type,
@@ -123,7 +124,7 @@ export function listAnalysisRunValuesByRunId(db: Db, runId: number): AnalysisRun
 
 export function listTagValuesForExperimentField(
   db: Db,
-  experimentId: number,
+  doeId: number,
   fieldId: number
 ): string[] {
   const rows = db
@@ -131,9 +132,9 @@ export function listTagValuesForExperimentField(
       `SELECT v.value_tags_json
        FROM analysis_run_values v
        JOIN runs r ON r.id = v.run_id
-       WHERE r.experiment_id = ? AND v.field_id = ? AND v.value_tags_json IS NOT NULL`
+       WHERE r.doe_id = ? AND v.field_id = ? AND v.value_tags_json IS NOT NULL`
     )
-    .all(experimentId, fieldId) as { value_tags_json: string }[];
+    .all(doeId, fieldId) as { value_tags_json: string }[];
   const tagSet = new Set<string>();
   rows.forEach((row) => {
     try {

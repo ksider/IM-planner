@@ -1,10 +1,12 @@
 import express from "express";
 import type { Db } from "../db.js";
 import {
+  createDoeWithDefaults,
   createExperimentWithDefaults,
   createCustomParam,
   generateRuns
 } from "../services/experiments_service.js";
+import { ensureQualificationDefaults } from "../services/qualification_service.js";
 import { listRecipes, getRecipeComponents } from "../repos/recipes_repo.js";
 import {
   getExperiment,
@@ -13,6 +15,8 @@ import {
   getDesignMetadata,
   upsertDesignMetadata
 } from "../repos/experiments_repo.js";
+import { createDoeStudy, deleteDoeStudy, getDoeStudy, listDoeStudies } from "../repos/doe_repo.js";
+import { listQualSummaries } from "../repos/qual_repo.js";
 import {
   listParamDefinitions,
   listParamDefinitionsByKind,
@@ -63,24 +67,127 @@ export function createExperimentsRouter(db: Db) {
 
     const experimentId = createExperimentWithDefaults(db, {
       name: req.body.name,
-      design_type: req.body.design_type,
-      seed: Number(req.body.seed || 1),
       notes: req.body.notes || null,
-      center_points: Number(req.body.center_points || 3),
-      max_runs: Number(req.body.max_runs || 200),
-      replicate_count: Number(req.body.replicate_count || 1),
-      recipe_as_block: req.body.recipe_as_block ? 1 : 0,
       recipe_ids: recipeIds
     });
+    ensureQualificationDefaults(db, experimentId);
 
     res.redirect(`/experiments/${experimentId}`);
   });
 
   router.get("/experiments/:id", (req, res) => {
     const experimentId = Number(req.params.id);
+    const experiment = getExperiment(db, experimentId);
+    if (!experiment) return res.status(404).send("Experiment not found");
+    const qualSummaries = listQualSummaries(db, experimentId);
+    const doeStudies = listDoeStudies(db, experimentId);
+    res.render("experiment_detail", {
+      experiment,
+      qualSummaries,
+      doeStudies
+    });
+  });
+
+  router.post("/experiments/:id/doe", (req, res) => {
+    const experimentId = Number(req.params.id);
+    const doeName = String(req.body.name || "").trim();
+    const existing = listDoeStudies(db, experimentId);
+    const name = doeName || `DOE ${existing.length + 1}`;
+    const designType = String(req.body.design_type || "SIM");
+    const seed = Number(req.body.seed || 42);
+    const centerPoints = Number(req.body.center_points || 3);
+    const maxRuns = Number(req.body.max_runs || 200);
+    const replicateCount = Number(req.body.replicate_count || 1);
+    const recipeAsBlock = req.body.recipe_as_block ? 1 : 0;
+    const doeId = createDoeWithDefaults(db, {
+      experimentId,
+      name,
+      design_type: designType,
+      seed,
+      center_points: centerPoints,
+      max_runs: maxRuns,
+      replicate_count: replicateCount,
+      recipe_as_block: recipeAsBlock
+    });
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design`);
+  });
+
+  router.post("/experiments/:id/doe/:doeId/clone", (req, res) => {
+    const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
+    const doe = getDoeStudy(db, doeId);
+    if (!doe || doe.experiment_id !== experimentId) {
+      return res.status(404).send("DOE not found");
+    }
+    const clonedId = createDoeStudy(db, {
+      experiment_id: experimentId,
+      name: `${doe.name} (clone)`,
+      design_type: doe.design_type,
+      seed: doe.seed,
+      center_points: doe.center_points,
+      max_runs: doe.max_runs,
+      replicate_count: doe.replicate_count,
+      recipe_as_block: doe.recipe_as_block
+    });
+    const configs = listParamConfigs(db, experimentId, doeId);
+    for (const cfg of configs) {
+      upsertParamConfig(db, {
+        experiment_id: experimentId,
+        doe_id: clonedId,
+        param_def_id: cfg.param_def_id,
+        active: cfg.active,
+        mode: cfg.mode,
+        fixed_value_real: cfg.fixed_value_real,
+        range_min_real: cfg.range_min_real,
+        range_max_real: cfg.range_max_real,
+        list_json: cfg.list_json,
+        level_count: cfg.level_count
+      });
+    }
+    const fields = listExperimentAnalysisFields(db, doeId);
+    for (const field of fields) {
+      insertAnalysisField(db, {
+        scope_type: "DOE",
+        scope_id: clonedId,
+        code: field.code,
+        label: field.label,
+        field_type: field.field_type,
+        unit: field.unit,
+        group_label: field.group_label,
+        allowed_values_json: field.allowed_values_json,
+        is_standard: field.is_standard,
+        is_active: field.is_active
+      });
+    }
+    res.redirect(`/experiments/${experimentId}/doe/${clonedId}?tab=design`);
+  });
+
+  router.post("/experiments/:id/doe/:doeId/delete", (req, res) => {
+    const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
+    const doe = getDoeStudy(db, doeId);
+    if (!doe || doe.experiment_id !== experimentId) {
+      return res.status(404).send("DOE not found");
+    }
+    deleteDoeStudy(db, doeId);
+    res.redirect(`/experiments/${experimentId}`);
+  });
+
+  router.get("/experiments/:id/doe", (req, res) => {
+    const experimentId = Number(req.params.id);
+    const list = listDoeStudies(db, experimentId);
+    if (list.length === 0) return res.redirect(`/experiments/${experimentId}`);
+    res.redirect(`/experiments/${experimentId}/doe/${list[0].id}?tab=design`);
+  });
+
+  router.get("/experiments/:id/doe/:doeId", (req, res) => {
+    const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const tab = (req.query.tab as string) || "design";
     const experiment = getExperiment(db, experimentId);
     if (!experiment) return res.status(404).send("Experiment not found");
+    const doe = getDoeStudy(db, doeId);
+    if (!doe || doe.experiment_id !== experimentId) return res.status(404).send("DOE not found");
     const errorMessage = req.query.error ? String(req.query.error) : null;
 
     const recipes = listRecipes(db);
@@ -88,19 +195,20 @@ export function createExperimentsRouter(db: Db) {
     const linkedRecipeOptions = recipes.filter((recipe) => linkedRecipes.includes(recipe.id));
     const params = listParamDefinitions(db, experimentId);
     const inputParams = listParamDefinitionsByKind(db, experimentId, "INPUT");
-    const configs = listParamConfigs(db, experimentId);
-    const designMeta = parseDesignMetadata(getDesignMetadata(db, experimentId));
+    const configs = listParamConfigs(db, experimentId, doeId);
+    const designMeta = parseDesignMetadata(getDesignMetadata(db, experimentId, doeId));
     const nonRandomizedParamId =
       typeof designMeta.non_randomized_param_id === "number"
         ? designMeta.non_randomized_param_id
         : null;
-    const runs = listRuns(db, experimentId);
-    const runRows = loadRuns(db, experimentId);
+    const runs = listRuns(db, doeId);
+    const runRows = loadRuns(db, doeId);
+    const qualSummaries = listQualSummaries(db, experimentId);
     const activeInputParams = inputParams.filter((param) => {
       const cfg = configs.find((c) => c.param_def_id === param.id);
       return cfg?.active === 1;
     });
-    const activeAnalysisFields = listActiveAnalysisFields(db, experimentId);
+    const activeAnalysisFields = listActiveAnalysisFields(db, doeId);
     const outputNumericParams = activeAnalysisFields.filter((field) => field.field_type === "number");
     const tagOutputFields = activeAnalysisFields.filter((field) => field.field_type === "tag");
     const booleanOutputFields = activeAnalysisFields.filter((field) => field.field_type === "boolean");
@@ -117,7 +225,7 @@ export function createExperimentsRouter(db: Db) {
       return { ...field, allowedValues };
     };
     const standardAnalysisFieldsRaw = listStandardAnalysisFields(db).map(parseAllowed);
-    const experimentAnalysisFields = listExperimentAnalysisFields(db, experimentId).map(parseAllowed);
+    const experimentAnalysisFields = listExperimentAnalysisFields(db, doeId).map(parseAllowed);
     const experimentByCode = new Map(experimentAnalysisFields.map((field) => [field.code, field]));
     const standardAnalysisFields = standardAnalysisFieldsRaw.map((field) => {
       const experimentField = experimentByCode.get(field.code);
@@ -127,7 +235,7 @@ export function createExperimentsRouter(db: Db) {
       };
     });
 
-    const runPreview = buildRunPreview(experiment, inputParams, configs, linkedRecipes);
+    const runPreview = buildRunPreview(doe, inputParams, configs, linkedRecipes);
 
     let analysis = null;
     if (tab === "analysis") {
@@ -148,7 +256,7 @@ export function createExperimentsRouter(db: Db) {
       const boolFieldId = req.query.bool_field ? Number(req.query.bool_field) : null;
       const boolValue = req.query.bool_value ? Number(req.query.bool_value) : null;
 
-      const allRuns = loadRuns(db, experimentId);
+      const allRuns = loadRuns(db, doeId);
       const analysisValues = listAnalysisRunValuesByRunIds(db, allRuns.map((run) => run.id));
       const analysisValueMap = new Map(
         analysisValues.map((row) => [`${row.run_id}:${row.field_id}`, row])
@@ -255,8 +363,10 @@ export function createExperimentsRouter(db: Db) {
       };
     }
 
-    res.render("experiment_detail", {
+    res.render("doe_detail", {
       experiment,
+      doe,
+      doeId,
       recipes,
       linkedRecipes,
       linkedRecipeOptions,
@@ -275,14 +385,16 @@ export function createExperimentsRouter(db: Db) {
       analysis,
       runPreview,
       errorMessage,
-      nonRandomizedParamId
+      nonRandomizedParamId,
+      qualSummaries
     });
   });
 
-  router.post("/experiments/:id/params", (req, res) => {
+  router.post("/experiments/:id/doe/:doeId/params", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const code = String(req.body.code || "").trim();
-    if (!code) return res.redirect(`/experiments/${experimentId}?tab=design`);
+    if (!code) return res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design`);
 
     createCustomParam(db, experimentId, {
       code,
@@ -295,7 +407,7 @@ export function createExperimentsRouter(db: Db) {
         ? JSON.stringify(String(req.body.allowed_values).split(",").map((tag: string) => tag.trim()).filter(Boolean))
         : null
     });
-    res.redirect(`/experiments/${experimentId}?tab=design`);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design`);
   });
 
   router.post("/experiments/:id/delete", (req, res) => {
@@ -304,11 +416,14 @@ export function createExperimentsRouter(db: Db) {
     res.redirect("/");
   });
 
-  router.post("/experiments/:id/configs", (req, res) => {
+  router.post("/experiments/:id/doe/:doeId/configs", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const experiment = getExperiment(db, experimentId);
     if (!experiment) return res.status(404).send("Experiment not found");
-    const configs = listParamConfigs(db, experimentId);
+    const doe = getDoeStudy(db, doeId);
+    if (!doe || doe.experiment_id !== experimentId) return res.status(404).send("DOE not found");
+    const configs = listParamConfigs(db, experimentId, doeId);
     const inputParams = listParamDefinitionsByKind(db, experimentId, "INPUT");
     const configMap = new Map(configs.map((config) => [config.param_def_id, config]));
     const labelMap = new Map(inputParams.map((param) => [param.id, param.label]));
@@ -350,7 +465,7 @@ export function createExperimentsRouter(db: Db) {
         rangeMax = values[1];
       }
 
-      if (experiment.design_type === "BBD" && active === 1) {
+      if (doe.design_type === "BBD" && active === 1) {
         if (mode === "FIXED") {
           errors.push(
             `BBD: "${labelMap.get(param.id) || "Factor"}" must be RANGE or LIST (3 levels).`
@@ -373,6 +488,7 @@ export function createExperimentsRouter(db: Db) {
       if (active === 1) {
         updates.push({
           experiment_id: experimentId,
+          doe_id: doeId,
           param_def_id: param.id,
           active,
           mode,
@@ -381,7 +497,7 @@ export function createExperimentsRouter(db: Db) {
           range_max_real: mode === "RANGE" && Number.isFinite(rangeMax) ? rangeMax : null,
           list_json: list.length ? JSON.stringify(list) : null,
           level_count:
-            experiment.design_type === "BBD" && mode === "RANGE"
+            doe.design_type === "BBD" && mode === "RANGE"
               ? 3
               : mode === "RANGE"
                 ? levelCount
@@ -396,13 +512,13 @@ export function createExperimentsRouter(db: Db) {
       if (wantsJson) {
         return res.status(400).json({ error: message });
       }
-      return res.redirect(`/experiments/${experimentId}?tab=design&error=${encodeURIComponent(message)}`);
+      return res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design&error=${encodeURIComponent(message)}`);
     }
     for (const param of inputParams) {
       const active = req.body[`param_${param.id}_active`] ? 1 : 0;
       if (active === 1) continue;
       if (configMap.has(param.id)) {
-        deleteParamConfig(db, experimentId, param.id);
+        deleteParamConfig(db, experimentId, doeId, param.id);
       }
     }
     for (const update of updates) {
@@ -413,31 +529,34 @@ export function createExperimentsRouter(db: Db) {
     const activeSet = new Set(updates.map((update) => update.param_def_id));
     const nonRandomizedParamId =
       Number.isFinite(selectedId) && activeSet.has(selectedId) ? selectedId : null;
-    const designMeta = parseDesignMetadata(getDesignMetadata(db, experimentId));
+    const designMeta = parseDesignMetadata(getDesignMetadata(db, experimentId, doeId));
     upsertDesignMetadata(
       db,
       experimentId,
+      doeId,
       JSON.stringify({ ...designMeta, non_randomized_param_id: nonRandomizedParamId })
     );
     if (wantsJson) {
       return res.status(204).send();
     }
-    res.redirect(`/experiments/${experimentId}?tab=design`);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design`);
   });
 
-  router.post("/experiments/:id/tags", (req, res) => {
+  router.post("/experiments/:id/doe/:doeId/tags", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const paramId = Number(req.body.param_id || 0);
     const allowed = String(req.body.allowed_values || "")
       .split(",")
       .map((tag) => tag.trim())
       .filter(Boolean);
     updateAllowedValues(db, paramId, allowed.length ? JSON.stringify(allowed) : null);
-    res.redirect(`/experiments/${experimentId}?tab=design`);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design`);
   });
 
-  router.post("/experiments/:id/analysis-fields/standard", (req, res) => {
+  router.post("/experiments/:id/doe/:doeId/analysis-fields/standard", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const wantsJson =
       req.get("X-Requested-With") === "XMLHttpRequest" || req.accepts("json") === "json";
     const selected = req.body.standard_codes || [];
@@ -447,12 +566,12 @@ export function createExperimentsRouter(db: Db) {
     const standardFields = listStandardAnalysisFields(db);
     for (const field of standardFields) {
       const shouldEnable = selectedCodes.has(field.code);
-      const existing = findExperimentAnalysisFieldByCode(db, experimentId, field.code);
+      const existing = findExperimentAnalysisFieldByCode(db, doeId, field.code);
       if (shouldEnable) {
         if (!existing) {
           insertAnalysisField(db, {
-            scope_type: "EXPERIMENT",
-            scope_id: experimentId,
+            scope_type: "DOE",
+            scope_id: doeId,
             code: field.code,
             label: field.label,
             field_type: field.field_type,
@@ -470,22 +589,22 @@ export function createExperimentsRouter(db: Db) {
       }
     }
     if (wantsJson) return res.status(204).send();
-    res.redirect(`/experiments/${experimentId}?tab=analysis`);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=analysis`);
   });
 
-  router.get("/experiments/:id/analysis-fields/tag-values", (req, res) => {
-    const experimentId = Number(req.params.id);
+  router.get("/experiments/:id/doe/:doeId/analysis-fields/tag-values", (req, res) => {
+    const doeId = Number(req.params.doeId);
     const fieldId = Number(req.query.field_id || 0);
     if (!Number.isFinite(fieldId) || fieldId <= 0) {
       return res.json({ values: [] });
     }
-    const values = listTagValuesForExperimentField(db, experimentId, fieldId);
+    const values = listTagValuesForExperimentField(db, doeId, fieldId);
     res.json({ values });
   });
 
-  router.get("/experiments/:id/analysis-fields/active", (req, res) => {
-    const experimentId = Number(req.params.id);
-    const fields = listActiveAnalysisFields(db, experimentId);
+  router.get("/experiments/:id/doe/:doeId/analysis-fields/active", (req, res) => {
+    const doeId = Number(req.params.doeId);
+    const fields = listActiveAnalysisFields(db, doeId);
     res.json({
       fields: fields.map((field) => ({
         id: field.id,
@@ -495,13 +614,14 @@ export function createExperimentsRouter(db: Db) {
     });
   });
 
-  router.post("/experiments/:id/analysis-fields/custom", (req, res) => {
+  router.post("/experiments/:id/doe/:doeId/analysis-fields/custom", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const wantsJson =
       req.get("X-Requested-With") === "XMLHttpRequest" || req.accepts("json") === "json";
     const updates = req.body.custom || {};
     const ids = Object.keys(updates);
-    const experimentFields = listExperimentAnalysisFields(db, experimentId);
+    const experimentFields = listExperimentAnalysisFields(db, doeId);
     for (const id of ids) {
       const fieldId = Number(id);
       if (!Number.isFinite(fieldId)) continue;
@@ -539,11 +659,12 @@ export function createExperimentsRouter(db: Db) {
       });
     }
     if (wantsJson) return res.status(204).send();
-    res.redirect(`/experiments/${experimentId}?tab=analysis`);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=analysis`);
   });
 
-  router.post("/experiments/:id/analysis-fields/custom/active", (req, res) => {
+  router.post("/experiments/:id/doe/:doeId/analysis-fields/custom/active", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const wantsJson =
       req.get("X-Requested-With") === "XMLHttpRequest" || req.accepts("json") === "json";
     const fieldId = Number(req.body.field_id || 0);
@@ -551,27 +672,28 @@ export function createExperimentsRouter(db: Db) {
     const isActive = isActiveRaw === "1" || isActiveRaw === "true" || isActiveRaw === "on" ? 1 : 0;
     if (!Number.isFinite(fieldId) || fieldId <= 0) {
       if (wantsJson) return res.status(400).json({ error: "Field id required." });
-      return res.redirect(`/experiments/${experimentId}?tab=analysis`);
+      return res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=analysis`);
     }
-    const experimentFields = listExperimentAnalysisFields(db, experimentId);
+    const experimentFields = listExperimentAnalysisFields(db, doeId);
     const existing = experimentFields.find((field) => field.id === fieldId);
     if (!existing || existing.is_standard === 1) {
       if (wantsJson) return res.status(404).json({ error: "Field not found." });
-      return res.redirect(`/experiments/${experimentId}?tab=analysis`);
+      return res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=analysis`);
     }
     updateAnalysisFieldActive(db, fieldId, isActive);
     if (wantsJson) return res.status(204).send();
-    res.redirect(`/experiments/${experimentId}?tab=analysis`);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=analysis`);
   });
 
-  router.post("/experiments/:id/analysis-fields/new", (req, res) => {
+  router.post("/experiments/:id/doe/:doeId/analysis-fields/new", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const wantsJson =
       req.get("X-Requested-With") === "XMLHttpRequest" || req.accepts("json") === "json";
     const label = String(req.body.label || "").trim();
     if (!label) {
       if (wantsJson) return res.status(400).json({ error: "Label is required." });
-      return res.redirect(`/experiments/${experimentId}?tab=analysis`);
+      return res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=analysis`);
     }
 
     const rawType = String(req.body.field_type || "number").trim();
@@ -596,14 +718,14 @@ export function createExperimentsRouter(db: Db) {
     const baseCode = slugify(rawCode || label) || "measured_field";
     let code = baseCode;
     let i = 2;
-    while (findExperimentAnalysisFieldByCode(db, experimentId, code)) {
+    while (findExperimentAnalysisFieldByCode(db, doeId, code)) {
       code = `${baseCode}_${i}`;
       i += 1;
     }
 
     insertAnalysisField(db, {
-      scope_type: "EXPERIMENT",
-      scope_id: experimentId,
+      scope_type: "DOE",
+      scope_id: doeId,
       code,
       label,
       field_type: fieldType as "number" | "text" | "tag" | "boolean",
@@ -615,7 +737,7 @@ export function createExperimentsRouter(db: Db) {
     });
 
     if (wantsJson) {
-      const created = findExperimentAnalysisFieldByCode(db, experimentId, code);
+      const created = findExperimentAnalysisFieldByCode(db, doeId, code);
       if (!created) return res.status(500).json({ error: "Failed to create field." });
       const allowedValues = created.allowed_values_json
         ? (JSON.parse(created.allowed_values_json) as string[])
@@ -633,35 +755,39 @@ export function createExperimentsRouter(db: Db) {
         }
       });
     }
-    res.redirect(`/experiments/${experimentId}?tab=analysis`);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=analysis`);
   });
 
-  router.post("/experiments/:id/generate", (req, res) => {
+  router.post("/experiments/:id/doe/:doeId/generate", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const experiment = getExperiment(db, experimentId);
     if (!experiment) return res.status(404).send("Experiment not found");
+    const doe = getDoeStudy(db, doeId);
+    if (!doe || doe.experiment_id !== experimentId) return res.status(404).send("DOE not found");
     const inputParams = listParamDefinitionsByKind(db, experimentId, "INPUT");
-    const configs = listParamConfigs(db, experimentId);
+    const configs = listParamConfigs(db, experimentId, doeId);
     const recipeIds = getExperimentRecipes(db, experimentId);
-    const runPreview = buildRunPreview(experiment, inputParams, configs, recipeIds);
-    if (experiment.design_type === "BBD" && runPreview.k < 3) {
+    const runPreview = buildRunPreview(doe, inputParams, configs, recipeIds);
+    if (doe.design_type === "BBD" && runPreview.k < 3) {
       const message =
         runPreview.warning ||
         `BBD needs at least 3 factors with 3 levels. Currently: ${runPreview.k}.`;
       return res.redirect(
-        `/experiments/${experimentId}?tab=design&error=${encodeURIComponent(message)}`
+        `/experiments/${experimentId}/doe/${doeId}?tab=design&error=${encodeURIComponent(message)}`
       );
     }
-    generateRuns(db, experimentId);
-    res.redirect(`/experiments/${experimentId}?tab=runs`);
+    generateRuns(db, experimentId, doeId);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=runs`);
   });
 
-  router.get("/experiments/:id/export/:type", (req, res) => {
+  router.get("/experiments/:id/doe/:doeId/export/:type", (req, res) => {
     const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
     const type = String(req.params.type);
-    const runs = loadRuns(db, experimentId);
+    const runs = loadRuns(db, doeId);
     const params = listParamDefinitions(db, experimentId);
-    const activeAnalysisFields = listActiveAnalysisFields(db, experimentId);
+    const activeAnalysisFields = listActiveAnalysisFields(db, doeId);
     const analysisValues = listAnalysisRunValuesByRunIds(db, runs.map((run) => run.id));
     const analysisValueMap = new Map(
       analysisValues.map((row) => [`${row.run_id}:${row.field_id}`, row])

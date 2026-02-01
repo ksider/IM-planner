@@ -35,7 +35,7 @@ const SEED_PARAMS: SeedParam[] = [
   { code: "barrel_zone3", label: "Barrel Zone 3", unit: "C", field_kind: "INPUT", field_type: "number", group_label: "Barrel" },
   { code: "barrel_zone4", label: "Barrel Zone 4", unit: "C", field_kind: "INPUT", field_type: "number", group_label: "Barrel" },
   { code: "barrel_zone5", label: "Barrel Zone 5", unit: "C", field_kind: "INPUT", field_type: "number", group_label: "Barrel" },
-  { code: "inj_speed", label: "Injection Speed", unit: "mm/s", field_kind: "INPUT", field_type: "number", group_label: "Fill" },
+  { code: "inj_speed", label: "Injection Speed", unit: "cm3/s", field_kind: "INPUT", field_type: "number", group_label: "Fill" },
   { code: "inj_press_limit", label: "Injection Pressure Limit", unit: "bar", field_kind: "INPUT", field_type: "number", group_label: "Fill" },
   { code: "v_to_p_transfer", label: "V-to-P Transfer", unit: "%", field_kind: "INPUT", field_type: "number", group_label: "Fill" },
   { code: "shot_size", label: "Shot Size", unit: "mm", field_kind: "INPUT", field_type: "number", group_label: "Fill" },
@@ -52,6 +52,7 @@ const SEED_PARAMS: SeedParam[] = [
   { code: "melt_temp", label: "Melt Temp", unit: "C", field_kind: "OUTPUT", field_type: "number", group_label: "Outputs" },
   { code: "fill_time", label: "Fill Time", unit: "s", field_kind: "OUTPUT", field_type: "number", group_label: "Outputs" },
   { code: "peak_inj_pressure", label: "Peak Injection Pressure", unit: "bar", field_kind: "OUTPUT", field_type: "number", group_label: "Outputs" },
+  { code: "intensification_coeff", label: "Intensification Coefficient", unit: "ratio", field_kind: "INPUT", field_type: "number", group_label: "Machine" },
   { code: "part_weight", label: "Part Weight", unit: "g", field_kind: "OUTPUT", field_type: "number", group_label: "Outputs" },
   { code: "cycle_time", label: "Cycle Time", unit: "s", field_kind: "OUTPUT", field_type: "number", group_label: "Outputs" },
   {
@@ -66,12 +67,13 @@ const SEED_PARAMS: SeedParam[] = [
 ];
 
 export function ensureSeedParams(db: Db) {
-  const existing = db
-    .prepare("SELECT COUNT(*) as count FROM param_definitions WHERE scope = 'GLOBAL'")
-    .get() as { count: number };
-  if (existing.count > 0) return;
+  const existingRows = db
+    .prepare("SELECT code FROM param_definitions WHERE scope = 'GLOBAL'")
+    .all() as Array<{ code: string }>;
+  const existingSet = new Set(existingRows.map((row) => row.code));
 
   for (const param of SEED_PARAMS) {
+    if (existingSet.has(param.code)) continue;
     createParamDefinition(db, {
       scope: "GLOBAL",
       experiment_id: null,

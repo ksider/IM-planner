@@ -7,12 +7,14 @@ import {
   setExperimentRecipes,
   upsertDesignMetadata
 } from "../repos/experiments_repo.js";
+import { createDoeStudy, getDoeStudy } from "../repos/doe_repo.js";
 import {
   createParamDefinition,
   listParamDefinitionsByKind,
   listParamConfigs,
   upsertParamConfig
 } from "../repos/params_repo.js";
+import { insertAnalysisField } from "../repos/analysis_repo.js";
 import { deleteRunsForExperiment, insertRuns } from "../repos/runs_repo.js";
 import type { ParamDefinition, ParamConfig } from "../repos/params_repo.js";
 import { buildBbdDesign, buildFfaDesign, buildScreenDesign, buildSimDesign } from "../domain/designs.js";
@@ -20,13 +22,7 @@ import { stableHash } from "../lib/hash.js";
 
 export type ExperimentCreateInput = {
   name: string;
-  design_type: string;
-  seed: number;
   notes?: string | null;
-  center_points?: number;
-  max_runs?: number;
-  replicate_count?: number;
-  recipe_as_block?: number;
   recipe_ids?: number[];
 };
 
@@ -75,23 +71,50 @@ export function getDefaultActiveFactors(designType: string): DefaultFactorConfig
 export function createExperimentWithDefaults(db: Db, input: ExperimentCreateInput): number {
   const experimentId = createExperiment(db, {
     name: input.name,
-    design_type: input.design_type,
-    seed: input.seed,
+    design_type: "SIM",
+    seed: 42,
     notes: input.notes ?? null,
-    center_points: input.center_points ?? 3,
-    max_runs: input.max_runs ?? 200,
-    replicate_count: input.replicate_count ?? 1,
-    recipe_as_block: input.recipe_as_block ?? 0
+    center_points: 3,
+    max_runs: 200,
+    replicate_count: 1,
+    recipe_as_block: 0
   });
   setExperimentRecipes(db, experimentId, input.recipe_ids ?? []);
+  return experimentId;
+}
 
-  const inputParams = listParamDefinitionsByKind(db, experimentId, "INPUT");
+export function createDoeWithDefaults(
+  db: Db,
+  input: {
+    experimentId: number;
+    name: string;
+    design_type: string;
+    seed: number;
+    center_points: number;
+    max_runs: number;
+    replicate_count: number;
+    recipe_as_block: number;
+  }
+): number {
+  const doeId = createDoeStudy(db, {
+    experiment_id: input.experimentId,
+    name: input.name,
+    design_type: input.design_type,
+    seed: input.seed,
+    center_points: input.center_points,
+    max_runs: input.max_runs,
+    replicate_count: input.replicate_count,
+    recipe_as_block: input.recipe_as_block
+  });
+
+  const inputParams = listParamDefinitionsByKind(db, input.experimentId, "INPUT");
   const defaultFactors = getDefaultActiveFactors(input.design_type);
   for (const factor of defaultFactors) {
     const param = inputParams.find((p) => p.code === factor.code);
     if (!param) continue;
     upsertParamConfig(db, {
-      experiment_id: experimentId,
+      experiment_id: input.experimentId,
+      doe_id: doeId,
       param_def_id: param.id,
       active: 1,
       mode: factor.mode,
@@ -102,7 +125,22 @@ export function createExperimentWithDefaults(db: Db, input: ExperimentCreateInpu
       level_count: factor.levelCount ?? null
     });
   }
-  return experimentId;
+  const outputParams = listParamDefinitionsByKind(db, input.experimentId, "OUTPUT");
+  for (const output of outputParams) {
+    insertAnalysisField(db, {
+      scope_type: "DOE",
+      scope_id: doeId,
+      code: output.code,
+      label: output.label,
+      field_type: output.field_type,
+      unit: output.unit,
+      group_label: output.group_label,
+      allowed_values_json: output.allowed_values_json,
+      is_standard: 0,
+      is_active: 1
+    });
+  }
+  return doeId;
 }
 
 export function createCustomParam(
@@ -138,14 +176,16 @@ function configToFactor(config: ParamConfig, param: ParamDefinition) {
   };
 }
 
-export function generateRuns(db: Db, experimentId: number) {
+export function generateRuns(db: Db, experimentId: number, doeId: number) {
   const experiment = getExperiment(db, experimentId);
   if (!experiment) throw new Error("Experiment not found");
+  const doe = getDoeStudy(db, doeId);
+  if (!doe) throw new Error("DOE not found");
 
   const inputParams = listParamDefinitionsByKind(db, experimentId, "INPUT");
   const outputParams = listParamDefinitionsByKind(db, experimentId, "OUTPUT");
-  const configs = listParamConfigs(db, experimentId);
-  const existingMeta = parseDesignMetadata(getDesignMetadata(db, experimentId));
+  const configs = listParamConfigs(db, experimentId, doeId);
+  const existingMeta = parseDesignMetadata(getDesignMetadata(db, experimentId, doeId));
   const nonRandomizedParamId =
     typeof existingMeta.non_randomized_param_id === "number"
       ? existingMeta.non_randomized_param_id
@@ -160,7 +200,7 @@ export function generateRuns(db: Db, experimentId: number) {
     .filter((entry) => entry.param != null) as Array<{ config: ParamConfig; param: ParamDefinition }>;
 
   const factorConfigs = activeFactors.map((entry) => {
-    if (experiment.design_type === "BBD" && entry.config.mode === "RANGE") {
+    if (doe.design_type === "BBD" && entry.config.mode === "RANGE") {
       return configToFactor({ ...entry.config, level_count: 3 }, entry.param);
     }
     return configToFactor(entry.config, entry.param);
@@ -169,22 +209,22 @@ export function generateRuns(db: Db, experimentId: number) {
   let designRuns: { values: Record<number, number>; coded?: Record<number, number> }[] = [];
   let metadata: Record<string, unknown> = {};
 
-  if (experiment.design_type === "SIM") {
-    designRuns = buildSimDesign(factorConfigs, experiment.seed, experiment.max_runs);
+  if (doe.design_type === "SIM") {
+    designRuns = buildSimDesign(factorConfigs, doe.seed, doe.max_runs);
     metadata = { design: "SIM", factors: factorConfigs };
-  } else if (experiment.design_type === "FFA") {
-    designRuns = buildFfaDesign(factorConfigs, experiment.seed, experiment.max_runs);
+  } else if (doe.design_type === "FFA") {
+    designRuns = buildFfaDesign(factorConfigs, doe.seed, doe.max_runs);
     metadata = { design: "FFA", factors: factorConfigs };
-  } else if (experiment.design_type === "BBD") {
+  } else if (doe.design_type === "BBD") {
     const { runs, codedLevels } = buildBbdDesign(
       factorConfigs,
-      experiment.seed,
-      experiment.center_points
+      doe.seed,
+      doe.center_points
     );
     designRuns = runs;
     metadata = { design: "BBD", factors: factorConfigs, codedLevels };
   } else {
-    designRuns = buildScreenDesign(factorConfigs, experiment.seed, experiment.max_runs);
+    designRuns = buildScreenDesign(factorConfigs, doe.seed, doe.max_runs);
     metadata = { design: "SCREEN_SAMPLE", factors: factorConfigs };
   }
   if (nonRandomizedParamId) {
@@ -192,7 +232,7 @@ export function generateRuns(db: Db, experimentId: number) {
   }
 
   const recipeIds = getExperimentRecipes(db, experimentId);
-  const recipeBlock = experiment.recipe_as_block === 1 && recipeIds.length > 0;
+  const recipeBlock = doe.recipe_as_block === 1 && recipeIds.length > 0;
   const recipeList = recipeBlock
     ? recipeIds
     : recipeIds.length === 1
@@ -230,11 +270,12 @@ export function generateRuns(db: Db, experimentId: number) {
 
   for (const recipeId of recipeList) {
     for (const baseRun of designRuns) {
-      for (let r = 0; r < experiment.replicate_count; r += 1) {
+      for (let r = 0; r < doe.replicate_count; r += 1) {
         const runCode = `E${experimentId}-R${String(runOrder).padStart(3, "0")}`;
         const replicateKey = buildReplicateKey(baseRun.values, recipeId, recipeBlock);
         runsToInsert.push({
           experiment_id: experimentId,
+          doe_id: doeId,
           run_order: runOrder,
           run_code: runCode,
           recipe_id: recipeId,
@@ -273,11 +314,12 @@ export function generateRuns(db: Db, experimentId: number) {
     }
   }
 
-  deleteRunsForExperiment(db, experimentId);
-  insertRuns(db, experimentId, runsToInsert, valuesToInsert);
+  deleteRunsForExperiment(db, doeId);
+  insertRuns(db, experimentId, doeId, runsToInsert, valuesToInsert);
   upsertDesignMetadata(
     db,
     experimentId,
+    doeId,
     JSON.stringify({ ...existingMeta, ...metadata, non_randomized_param_id: nonRandomizedParamId })
   );
 }

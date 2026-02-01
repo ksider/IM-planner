@@ -3,6 +3,7 @@ import type { Db } from "../db.js";
 export type Run = {
   id: number;
   experiment_id: number;
+  doe_id: number | null;
   run_order: number;
   run_code: string;
   recipe_id: number | null;
@@ -21,20 +22,20 @@ export type RunValue = {
   value_tags_json: string | null;
 };
 
-export function listRuns(db: Db, experimentId: number): Run[] {
+export function listRuns(db: Db, doeId: number): Run[] {
   return db
-    .prepare("SELECT * FROM runs WHERE experiment_id = ? ORDER BY run_order")
-    .all(experimentId) as Run[];
+    .prepare("SELECT * FROM runs WHERE doe_id = ? ORDER BY run_order")
+    .all(doeId) as Run[];
 }
 
-export function deleteRunsForExperiment(db: Db, experimentId: number) {
+export function deleteRunsForExperiment(db: Db, doeId: number) {
   const delValues = db.prepare(
-    "DELETE FROM run_values WHERE run_id IN (SELECT id FROM runs WHERE experiment_id = ?)"
+    "DELETE FROM run_values WHERE run_id IN (SELECT id FROM runs WHERE doe_id = ?)"
   );
-  const delRuns = db.prepare("DELETE FROM runs WHERE experiment_id = ?");
+  const delRuns = db.prepare("DELETE FROM runs WHERE doe_id = ?");
   const tx = db.transaction(() => {
-    delValues.run(experimentId);
-    delRuns.run(experimentId);
+    delValues.run(doeId);
+    delRuns.run(doeId);
   });
   tx();
 }
@@ -42,13 +43,14 @@ export function deleteRunsForExperiment(db: Db, experimentId: number) {
 export function insertRuns(
   db: Db,
   experimentId: number,
+  doeId: number,
   runs: Array<Omit<Run, "id" | "created_at">>,
   values: Array<RunValue>
 ) {
   const insertRun = db.prepare(
     `INSERT INTO runs
-     (experiment_id, run_order, run_code, recipe_id, replicate_key, replicate_index, done, exclude_from_analysis, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (experiment_id, doe_id, run_order, run_code, recipe_id, replicate_key, replicate_index, done, exclude_from_analysis, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insertValue = db.prepare(
     "INSERT INTO run_values (run_id, param_def_id, value_real, value_text, value_tags_json) VALUES (?, ?, ?, ?, ?)"
@@ -58,6 +60,7 @@ export function insertRuns(
     for (const run of runs) {
       const res = insertRun.run(
         experimentId,
+        doeId,
         run.run_order,
         run.run_code,
         run.recipe_id,
@@ -133,16 +136,16 @@ export function updateRunStatus(
   );
 }
 
-export function getNextPrevRunIds(db: Db, experimentId: number, runOrder: number) {
+export function getNextPrevRunIds(db: Db, doeId: number, runOrder: number) {
   const prev = db
     .prepare(
-      "SELECT id FROM runs WHERE experiment_id = ? AND run_order < ? ORDER BY run_order DESC LIMIT 1"
+      "SELECT id FROM runs WHERE doe_id = ? AND run_order < ? ORDER BY run_order DESC LIMIT 1"
     )
-    .get(experimentId, runOrder) as { id: number } | undefined;
+    .get(doeId, runOrder) as { id: number } | undefined;
   const next = db
     .prepare(
-      "SELECT id FROM runs WHERE experiment_id = ? AND run_order > ? ORDER BY run_order ASC LIMIT 1"
+      "SELECT id FROM runs WHERE doe_id = ? AND run_order > ? ORDER BY run_order ASC LIMIT 1"
     )
-    .get(experimentId, runOrder) as { id: number } | undefined;
+    .get(doeId, runOrder) as { id: number } | undefined;
   return { prevId: prev?.id ?? null, nextId: next?.id ?? null };
 }
