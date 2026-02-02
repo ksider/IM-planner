@@ -1,0 +1,402 @@
+<%- include('partials/head', { title: 'IM Planner | Parameter Library' }) %>
+<%- include('partials/nav') %>
+<div class="container wide">
+  <div class="card">
+    <div class="card-header">
+      <a class="back-link" href="/" aria-label="Back to experiments">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </a>
+      <div>
+        <h1 class="card-title">Global Parameter Library</h1>
+        <p class="small-note">Shared parameters for qualification and detailed optimization.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <% const groupSet = new Set(); params.forEach((param) => groupSet.add(param.group_label || 'General')); const groupList = Array.from(groupSet); %>
+    <div class="param-toolbar">
+      <div class="param-search">
+        <label>Search</label>
+        <input type="search" id="paramSearch" placeholder="Search code, label, unit...">
+      </div>
+      <div class="param-toolbar-actions">
+        <button class="pure-button pure-button-secondary" type="button" id="openParamCreate">Add parameter</button>
+      </div>
+    </div>
+
+    <div class="filter-block">
+      <div class="filter-row">
+        <div class="filter-label">Kind</div>
+        <div class="chip-group" data-kind-filter>
+          <button type="button" class="filter-chip active" data-kind="all">All</button>
+          <button type="button" class="filter-chip kind-input" data-kind="INPUT">Input</button>
+          <button type="button" class="filter-chip kind-output" data-kind="OUTPUT">Output</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <div class="filter-label">Type</div>
+        <div class="chip-group" data-type-filter>
+          <button type="button" class="filter-chip active" data-type="all">All</button>
+          <button type="button" class="filter-chip type-number" data-type="number">Number</button>
+          <button type="button" class="filter-chip type-text" data-type="text">Text</button>
+          <button type="button" class="filter-chip type-tag" data-type="tag">Tag</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <div class="filter-label">Group</div>
+        <div class="chip-group" data-group-filter>
+          <button type="button" class="filter-chip active" data-group="all">All</button>
+          <% groupList.forEach((group) => { const groupKey = group.toLowerCase().replace(/[^a-z0-9]+/g, '-'); %>
+            <button type="button" class="filter-chip" data-group="<%= groupKey %>"><%- formatInline(group) %></button>
+          <% }); %>
+        </div>
+      </div>
+    </div>
+
+    <table class="pure-table table-compact library-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Label</th>
+          <th>Kind</th>
+          <th>Type</th>
+          <th>Unit</th>
+          <th>Group</th>
+          <th>Allowed (tags)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="paramLibraryBody">
+        <% params.forEach((param) => { const groupKey = (param.group_label || 'General').toLowerCase().replace(/[^a-z0-9]+/g, '-'); %>
+          <tr
+            data-param-row
+            data-param-id="<%= param.id %>"
+            data-param-label="<%= param.label %>"
+            data-param-code="<%= param.code %>"
+            data-param-unit="<%= param.unit || '' %>"
+            data-param-group="<%= groupKey %>"
+            data-param-kind="<%= param.field_kind %>"
+            data-param-type="<%= param.field_type %>"
+            class="group-row group-<%= groupKey %>"
+          >
+            <td><input data-lib-code value="<%= param.code %>"></td>
+            <td><input data-lib-label value="<%- formatInline(param.label) %>"></td>
+            <td>
+              <span class="param-pill kind <%= param.field_kind === 'INPUT' ? 'kind-input' : 'kind-output' %>"><%= param.field_kind %></span>
+              <select data-lib-kind>
+                <option value="INPUT" <%= param.field_kind === 'INPUT' ? 'selected' : '' %>>INPUT</option>
+                <option value="OUTPUT" <%= param.field_kind === 'OUTPUT' ? 'selected' : '' %>>OUTPUT</option>
+              </select>
+            </td>
+            <td>
+              <span class="param-pill type type-<%= param.field_type %>"><%= param.field_type %></span>
+              <select data-lib-type>
+                <option value="number" <%= param.field_type === 'number' ? 'selected' : '' %>>number</option>
+                <option value="text" <%= param.field_type === 'text' ? 'selected' : '' %>>text</option>
+                <option value="tag" <%= param.field_type === 'tag' ? 'selected' : '' %>>tag</option>
+              </select>
+            </td>
+            <td><input data-lib-unit value="<%= param.unit || '' %>"></td>
+            <td><input data-lib-group value="<%= param.group_label || '' %>"></td>
+            <td>
+              <% let tags = ''; %>
+              <% if (param.allowed_values_json) { try { const parsed = JSON.parse(param.allowed_values_json); if (Array.isArray(parsed)) tags = parsed.join(', '); } catch {} } %>
+              <input data-lib-allowed value="<%= tags %>">
+            </td>
+            <td>
+              <button class="icon-button danger" type="button" data-delete-param title="Delete">
+                <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+              </button>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<dialog class="modal-frame" id="paramCreateDialog">
+  <div class="modal-header">
+    <strong>Add Parameter</strong>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+  <div class="modal-body">
+    <form class="pure-form pure-form-stacked" id="paramCreateForm">
+      <div class="field-grid">
+        <div>
+          <label>Code</label>
+          <input type="text" name="code" placeholder="custom_param" required>
+        </div>
+        <div>
+          <label>Label</label>
+          <input type="text" name="label" placeholder="Custom Parameter" required>
+        </div>
+        <div>
+          <label>Unit</label>
+          <input type="text" name="unit">
+        </div>
+        <div>
+          <label>Group</label>
+          <input type="text" name="group_label" placeholder="Outputs">
+        </div>
+        <div>
+          <label>Kind</label>
+          <select name="field_kind">
+            <option value="INPUT">Input</option>
+            <option value="OUTPUT">Output</option>
+          </select>
+        </div>
+        <div>
+          <label>Type</label>
+          <select name="field_type">
+            <option value="number">Number</option>
+            <option value="text">Text</option>
+            <option value="tag">Tag</option>
+          </select>
+        </div>
+        <div>
+          <label>Allowed Tags (comma-separated)</label>
+          <input type="text" name="allowed_values" placeholder="good, ok, fail">
+        </div>
+      </div>
+      <button class="pure-button pure-button-primary" type="submit">Add Field</button>
+    </form>
+  </div>
+</dialog>
+
+<script>
+  const libraryBody = document.getElementById('paramLibraryBody');
+  const openParamCreate = document.getElementById('openParamCreate');
+  const createDialog = document.getElementById('paramCreateDialog');
+  const createForm = document.getElementById('paramCreateForm');
+  const searchInput = document.getElementById('paramSearch');
+  let librarySaveTimer = null;
+
+  const scheduleLibrarySave = (row) => {
+    if (librarySaveTimer) clearTimeout(librarySaveTimer);
+    librarySaveTimer = setTimeout(async () => {
+      const paramId = row.dataset.paramId;
+      const payload = new URLSearchParams();
+      payload.append('code', row.querySelector('[data-lib-code]').value);
+      payload.append('label', row.querySelector('[data-lib-label]').value);
+      payload.append('field_kind', row.querySelector('[data-lib-kind]').value);
+      payload.append('field_type', row.querySelector('[data-lib-type]').value);
+      payload.append('unit', row.querySelector('[data-lib-unit]').value);
+      payload.append('group_label', row.querySelector('[data-lib-group]').value);
+      const allowed = row.querySelector('[data-lib-allowed]').value.trim();
+      payload.append('allowed_values_json', allowed ? JSON.stringify(allowed.split(',').map((t) => t.trim()).filter(Boolean)) : '');
+      await fetch(`/param-library/${paramId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+    }, 400);
+  };
+
+  libraryBody?.addEventListener('input', (event) => {
+    const row = event.target.closest('tr[data-param-id]');
+    if (!row) return;
+    row.dataset.paramLabel = row.querySelector('[data-lib-label]').value;
+    row.dataset.paramCode = row.querySelector('[data-lib-code]').value;
+    row.dataset.paramUnit = row.querySelector('[data-lib-unit]').value;
+    row.dataset.paramGroup = (row.querySelector('[data-lib-group]').value || 'general')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-');
+    row.dataset.paramKind = row.querySelector('[data-lib-kind]').value;
+    row.dataset.paramType = row.querySelector('[data-lib-type]').value;
+    scheduleLibrarySave(row);
+    updateRowPills(row);
+    applyFilters();
+    applyGroupColors();
+  });
+
+  openParamCreate?.addEventListener('click', () => createDialog?.showModal());
+  createDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => createDialog?.close());
+  });
+
+  const appendParamRow = (data) => {
+    const row = document.createElement('tr');
+    const groupKey = (data.group_label || 'General').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    row.dataset.paramId = data.id;
+    row.dataset.paramLabel = data.label;
+    row.dataset.paramCode = data.code;
+    row.dataset.paramUnit = data.unit || '';
+    row.dataset.paramGroup = groupKey;
+    row.dataset.paramKind = data.field_kind;
+    row.dataset.paramType = data.field_type;
+    row.setAttribute('data-param-row', '');
+    row.className = `group-row group-${groupKey}`;
+    row.innerHTML = `
+      <td><input data-lib-code value="${data.code}"></td>
+      <td><input data-lib-label value="${data.label}"></td>
+      <td>
+        <span class="param-pill kind ${data.field_kind === 'INPUT' ? 'kind-input' : 'kind-output'}">${data.field_kind}</span>
+        <select data-lib-kind>
+          <option value="INPUT" ${data.field_kind === 'INPUT' ? 'selected' : ''}>INPUT</option>
+          <option value="OUTPUT" ${data.field_kind === 'OUTPUT' ? 'selected' : ''}>OUTPUT</option>
+        </select>
+      </td>
+      <td>
+        <span class="param-pill type type-${data.field_type}">${data.field_type}</span>
+        <select data-lib-type>
+          <option value="number" ${data.field_type === 'number' ? 'selected' : ''}>number</option>
+          <option value="text" ${data.field_type === 'text' ? 'selected' : ''}>text</option>
+          <option value="tag" ${data.field_type === 'tag' ? 'selected' : ''}>tag</option>
+        </select>
+      </td>
+      <td><input data-lib-unit value="${data.unit || ''}"></td>
+      <td><input data-lib-group value="${data.group_label || ''}"></td>
+      <td><input data-lib-allowed value="${data.allowed_values || ''}"></td>
+      <td>
+        <button class="icon-button danger" type="button" data-delete-param title="Delete">
+          <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+        </button>
+      </td>
+    `;
+    libraryBody.appendChild(row);
+    applyGroupColors();
+  };
+
+  createForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(createForm);
+    const payload = new URLSearchParams();
+    payload.append('code', String(formData.get('code') || '').trim());
+    payload.append('label', String(formData.get('label') || '').trim());
+    payload.append('unit', String(formData.get('unit') || '').trim());
+    payload.append('group_label', String(formData.get('group_label') || '').trim());
+    payload.append('field_kind', String(formData.get('field_kind') || 'INPUT'));
+    payload.append('field_type', String(formData.get('field_type') || 'number'));
+    const allowed = String(formData.get('allowed_values') || '').trim();
+    if (allowed) {
+      payload.append('allowed_values_json', JSON.stringify(allowed.split(',').map((t) => t.trim()).filter(Boolean)));
+    }
+    const resp = await fetch('/param-library', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: payload
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    appendParamRow({
+      id: data.id,
+      code: payload.get('code'),
+      label: payload.get('label'),
+      unit: payload.get('unit'),
+      group_label: payload.get('group_label'),
+      field_kind: payload.get('field_kind'),
+      field_type: payload.get('field_type'),
+      allowed_values: allowed
+    });
+    createForm.reset();
+    createDialog?.close();
+    applyFilters();
+  });
+
+  const updateRowPills = (row) => {
+    const kind = row.dataset.paramKind;
+    const type = row.dataset.paramType;
+    const kindPill = row.querySelector('.param-pill.kind');
+    const typePill = row.querySelector('.param-pill.type');
+    if (kindPill) {
+      kindPill.textContent = kind;
+      kindPill.className = `param-pill kind ${kind === 'INPUT' ? 'kind-input' : 'kind-output'}`;
+    }
+    if (typePill) {
+      typePill.textContent = type;
+      typePill.className = `param-pill type type-${type}`;
+    }
+  };
+
+  const setActiveChip = (container, target) => {
+    container.querySelectorAll('.filter-chip').forEach((chip) => chip.classList.remove('active'));
+    target.classList.add('active');
+  };
+
+  const getActiveValue = (selector, attr) => {
+    const active = document.querySelector(`${selector} .filter-chip.active`);
+    return active ? active.getAttribute(attr) : 'all';
+  };
+
+  const applyFilters = () => {
+    const kind = getActiveValue('[data-kind-filter]', 'data-kind');
+    const type = getActiveValue('[data-type-filter]', 'data-type');
+    const group = getActiveValue('[data-group-filter]', 'data-group');
+    const query = (searchInput?.value || '').toLowerCase();
+    document.querySelectorAll('[data-param-row]').forEach((row) => {
+      const rowKind = row.dataset.paramKind || '';
+      const rowType = row.dataset.paramType || '';
+      const rowGroup = row.dataset.paramGroup || '';
+      const text = `${row.dataset.paramLabel || ''} ${row.dataset.paramCode || ''} ${row.dataset.paramUnit || ''}`;
+      const matchesKind = kind === 'all' || rowKind === kind;
+      const matchesType = type === 'all' || rowType === type;
+      const matchesGroup = group === 'all' || rowGroup === group;
+      const matchesSearch = !query || text.toLowerCase().includes(query);
+      row.style.display = matchesKind && matchesType && matchesGroup && matchesSearch ? '' : 'none';
+    });
+  };
+
+  const groupPalette = [
+    { color: '#3b6e8c', bg: '#eef5fb' },
+    { color: '#8a5a44', bg: '#f9efe9' },
+    { color: '#3b7a57', bg: '#eef7f1' },
+    { color: '#6a4d86', bg: '#f4eef9' },
+    { color: '#9a6b21', bg: '#fbf3e3' },
+    { color: '#5a6b2e', bg: '#f2f6e8' },
+    { color: '#5f6a7a', bg: '#f2f4f8' }
+  ];
+
+  const applyGroupColors = () => {
+    const rows = Array.from(document.querySelectorAll('[data-param-row]'));
+    const keys = Array.from(new Set(rows.map((row) => row.dataset.paramGroup || 'general')));
+    keys.forEach((key, index) => {
+      const palette = groupPalette[index % groupPalette.length];
+      rows
+        .filter((row) => (row.dataset.paramGroup || 'general') === key)
+        .forEach((row) => {
+          row.style.setProperty('--group-color', palette.color);
+          row.style.setProperty('--group-bg', palette.bg);
+          row.classList.add('group-row');
+        });
+    });
+  };
+
+  document.querySelector('[data-kind-filter]')?.addEventListener('click', (event) => {
+    const chip = event.target.closest('.filter-chip');
+    if (!chip) return;
+    setActiveChip(event.currentTarget, chip);
+    applyFilters();
+  });
+
+  document.querySelector('[data-type-filter]')?.addEventListener('click', (event) => {
+    const chip = event.target.closest('.filter-chip');
+    if (!chip) return;
+    setActiveChip(event.currentTarget, chip);
+    applyFilters();
+  });
+
+  document.querySelector('[data-group-filter]')?.addEventListener('click', (event) => {
+    const chip = event.target.closest('.filter-chip');
+    if (!chip) return;
+    setActiveChip(event.currentTarget, chip);
+    applyFilters();
+  });
+
+  searchInput?.addEventListener('input', applyFilters);
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-delete-param]');
+    if (!target) return;
+    const row = target.closest('[data-param-row]');
+    const paramId = row?.dataset.paramId;
+    if (!paramId) return;
+    fetch(`/param-library/${paramId}/delete`, { method: 'POST' }).then(() => {
+      row?.remove();
+      applyFilters();
+    });
+  });
+  applyFilters();
+  applyGroupColors();
+</script>
+<%- include('partials/foot') %>

@@ -1,0 +1,62 @@
+<%- include('partials/head', { title: 'IM Planner | Qualification' }) %>
+<%- include('partials/nav') %>
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <a class="back-link" href="/experiments/<%= experimentId %>" aria-label="Back to experiment">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </a>
+      <h1 class="card-title">Qualification (Scientific Molding)</h1>
+    </div>
+    <p class="small-note">Six-step qualification lives inside this experiment.</p>
+    <div class="qual-step-grid">
+      <% steps.forEach((step) => { const def = stepDefinitions.find((d) => d.step_number === step.step_number); const summary = summaryMap.get(step.step_number); %>
+        <div class="qual-step-card">
+          <div class="qual-step-header">
+            <div>
+              <div class="badge">Step <%= step.step_number %></div>
+              <h3><%= def?.name || `Step ${step.step_number}` %></h3>
+            </div>
+            <% const hasSummary = Boolean(summary); %>
+            <span class="qual-status <%= hasSummary ? 'status-done' : '' %>"><%= hasSummary ? 'DONE' : step.status %></span>
+          </div>
+          <% if (summary) { %>
+            <% let summaryData = null; %>
+            <% try { summaryData = JSON.parse(summary); } catch {} %>
+            <% if (summaryData) { %>
+              <div class="qual-summary-list">
+                <% if (step.step_number === 4) { %>
+                  <div class="qual-summary-item">
+                    <span class="small-note">center temp</span>
+                    <strong><%= typeof summaryData.window_center_temp === 'number' ? formatNumber(summaryData.window_center_temp) : '-' %></strong>
+                  </div>
+                  <div class="qual-summary-item">
+                    <span class="small-note">center pressure</span>
+                    <strong><%= typeof summaryData.window_center_pressure === 'number' ? formatNumber(summaryData.window_center_pressure) : '-' %></strong>
+                  </div>
+                <% } else { %>
+                  <% const entries = Object.entries(summaryData).filter(([key]) => !['experiment_id','step_number'].includes(key)); %>
+                  <% if (entries.length === 0) { %>
+                    <div class="small-note">Summary ready.</div>
+                  <% } %>
+                  <% entries.slice(0, 4).forEach(([key, value]) => { %>
+                    <div class="qual-summary-item">
+                      <span class="small-note"><%= key.replace(/_/g, ' ') %></span>
+                      <strong><%= typeof value === 'number' ? formatNumber(value) : String(value ?? '-') %></strong>
+                    </div>
+                  <% }); %>
+                <% } %>
+              </div>
+            <% } else { %>
+              <div class="small-note">Summary ready.</div>
+            <% } %>
+          <% } else { %>
+            <div class="small-note">No summary yet.</div>
+          <% } %>
+          <a class="pure-button pure-button-secondary qual-step-btn" href="/experiments/<%= experimentId %>/qualification/<%= step.step_number %>">Open Step</a>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+</div>
+<%- include('partials/foot') %>

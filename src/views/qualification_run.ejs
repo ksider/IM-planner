@@ -1,0 +1,129 @@
+<%- include('partials/head', { title: `Qualification Run ${run.run_code}` }) %>
+<%- include('partials/nav') %>
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <a class="back-link" href="/experiments/<%= run.experiment_id %>/qualification/<%= step.step_number %>" aria-label="Back to step">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </a>
+      <div>
+        <h1 class="card-title">Qualification Run <%= run.run_code %></h1>
+        <p class="small-note">Step <%= step.step_number %></p>
+      </div>
+    </div>
+    <div class="run-controls">
+      <span class="save-status" id="qualSaveStatus">Saved</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Inputs & Measurements</h2>
+    <div class="field-grid">
+      <% fields.forEach((field) => { const value = valueMap.get(field.id); %>
+        <div class="field-chip">
+          <div class="field-title"><%- formatInline(field.label) %></div>
+          <% if (field.unit) { %><div class="field-meta"><%- formatInline(field.unit) %></div><% } %>
+          <% if (field.is_derived) { %>
+            <div class="small-note"><%= field.field_type === 'number' ? (value?.value_real ?? '-') : (value?.value_text ?? '-') %></div>
+          <% } else if (field.field_type === 'boolean') { %>
+            <label class="toggle">
+              <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="boolean" <%= value?.value_real ? 'checked' : '' %>>
+              <span class="track"></span>
+            </label>
+          <% } else if (field.field_type === 'tag') { %>
+            <% let tags = []; %>
+            <% if (field.allowed_values_json) { try { const parsed = JSON.parse(field.allowed_values_json); if (Array.isArray(parsed)) tags = parsed; } catch {} } %>
+            <% let selected = []; %>
+            <% if (value?.value_tags_json) { try { const parsed = JSON.parse(value.value_tags_json); if (Array.isArray(parsed)) selected = parsed.map(String); } catch {} } %>
+            <div class="tag-grid">
+              <% tags.forEach((tag) => { %>
+                <label class="tag-toggle">
+                  <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="tag" value="<%= tag %>" <%= selected.includes(tag) ? 'checked' : '' %>>
+                  <span class="tag-chip"><%- formatInline(tag) %></span>
+                </label>
+              <% }); %>
+            </div>
+          <% } else if (field.field_type === 'number') { %>
+            <input type="number" step="any" data-field-id="<%= field.id %>" data-field-type="number" value="<%= value?.value_real ?? '' %>">
+          <% } else { %>
+            <input type="text" data-field-id="<%= field.id %>" data-field-type="text" value="<%= value?.value_text ?? '' %>">
+          <% } %>
+        </div>
+      <% }); %>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="run-controls">
+      <label class="pure-checkbox">
+        <input type="checkbox" id="qualRunDone" <%= run.done ? 'checked' : '' %>> Done
+      </label>
+      <label class="pure-checkbox">
+        <input type="checkbox" id="qualRunExclude" <%= run.exclude_from_analysis ? 'checked' : '' %>> Exclude from analysis
+      </label>
+    </div>
+  </div>
+</div>
+
+<script>
+  const statusEl = document.getElementById('qualSaveStatus');
+  let saveTimer = null;
+  let saving = false;
+
+  const postValue = async (fieldId, fieldType, value) => {
+    if (!statusEl) return;
+    statusEl.textContent = 'Saving...';
+    saving = true;
+    try {
+      await fetch(`/qual-runs/<%= run.id %>/value`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field_id: fieldId, value })
+      });
+      statusEl.textContent = 'Saved ✓';
+    } catch {
+      statusEl.textContent = 'Error ↺';
+    } finally {
+      saving = false;
+    }
+  };
+
+  const scheduleSave = (fieldId, fieldType, value) => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => postValue(fieldId, fieldType, value), 400);
+  };
+
+  document.querySelectorAll('[data-field-id]').forEach((input) => {
+    const fieldId = input.dataset.fieldId;
+    const fieldType = input.dataset.fieldType;
+    if (!fieldId || !fieldType) return;
+    input.addEventListener('change', () => {
+      if (fieldType === 'tag') {
+        const values = [];
+        document.querySelectorAll(`[data-field-id="${fieldId}"]`).forEach((tagEl) => {
+          if (tagEl.checked) values.push(tagEl.value);
+        });
+        scheduleSave(fieldId, fieldType, values);
+        return;
+      }
+      if (fieldType === 'boolean') {
+        scheduleSave(fieldId, fieldType, input.checked ? 1 : 0);
+        return;
+      }
+      scheduleSave(fieldId, fieldType, input.value);
+    });
+  });
+
+  const doneEl = document.getElementById('qualRunDone');
+  const excludeEl = document.getElementById('qualRunExclude');
+  const saveFlags = async () => {
+    await fetch(`/qual-runs/<%= run.id %>/flags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ done: doneEl.checked, exclude: excludeEl.checked })
+    });
+  };
+  doneEl?.addEventListener('change', saveFlags);
+  excludeEl?.addEventListener('change', saveFlags);
+</script>
+<%- include('partials/foot') %>

@@ -1,0 +1,138 @@
+<%- include('partials/head', { title: `IM Planner | ${experiment.name}` }) %>
+<%- include('partials/nav') %>
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <a class="back-link" href="/" aria-label="Back to experiments">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </a>
+      <div>
+        <h1 class="card-title"><%- formatInline(experiment.name) %></h1>
+        <% if (experiment.notes) { %>
+          <p class="small-note"><%- formatInline(experiment.notes) %></p>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Research Sections</h2>
+    </div>
+    <div class="section-list">
+      <div class="section-row">
+        <div>
+          <a class="section-title" href="/experiments/<%= experiment.id %>/qualification"><strong>Qualification</strong></a>
+          <div class="small-note">Six-step Scientific Molding sequence.</div>
+        </div>
+        <div class="section-actions">
+          <a class="pure-button pure-button-secondary" href="/experiments/<%= experiment.id %>/qualification">Open</a>
+          <a class="pure-button" href="/experiments/<%= experiment.id %>/qualification/1">Step 1</a>
+          <a class="pure-button" href="/experiments/<%= experiment.id %>/qualification/2">Step 2</a>
+          <a class="pure-button" href="/experiments/<%= experiment.id %>/qualification/3">Step 3</a>
+          <a class="pure-button" href="/experiments/<%= experiment.id %>/qualification/4">Step 4</a>
+          <a class="pure-button" href="/experiments/<%= experiment.id %>/qualification/5">Step 5</a>
+          <a class="pure-button" href="/experiments/<%= experiment.id %>/qualification/6">Step 6</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Detailed Optimization</h2>
+      <button class="pure-button pure-button-secondary" type="button" id="openDoeCreate">AddNew</button>
+    </div>
+    <div class="section-list">
+      <% if (!doeStudies || doeStudies.length === 0) { %>
+        <div class="small-note">No detailed optimization studies yet. Create one.</div>
+      <% } else { %>
+        <% doeStudies.forEach((doe) => { %>
+          <div class="section-row">
+            <div>
+              <a class="section-title" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=design"><strong><%- formatInline(doe.name) %></strong></a>
+              <div class="small-note">Type: <%= doe.design_type %> · Seed: <%= doe.seed %></div>
+            </div>
+            <div class="section-actions">
+              <a class="pure-button pure-button-secondary" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=analysis">Analysis</a>
+              <a class="pure-button" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=runs">Runs</a>
+              <form class="icon-action" action="/experiments/<%= experiment.id %>/doe/<%= doe.id %>/clone" method="post">
+                <button class="icon-button" type="submit" title="Clone detailed optimization">
+                  <span class="material-symbols-rounded" aria-hidden="true">content_copy</span>
+                </button>
+              </form>
+              <form class="icon-action" action="/experiments/<%= experiment.id %>/doe/<%= doe.id %>/delete" method="post" onsubmit="return confirm('Delete this detailed optimization study?');">
+                <button class="icon-button danger" type="submit" title="Delete detailed optimization">
+                  <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        <% }); %>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<dialog class="modal-frame" id="doeCreateDialog">
+  <div class="modal-header">
+    <strong>New Detailed Optimization Study</strong>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+  <form class="pure-form" action="/experiments/<%= experiment.id %>/doe" method="post">
+    <div class="modal-body">
+      <div class="field-grid">
+        <div>
+          <label>Name</label>
+          <input name="name" placeholder="Optimization 1">
+        </div>
+        <div>
+          <label>Design Type</label>
+          <select name="design_type">
+            <option value="BBD">BBD (Box-Behnken)</option>
+            <option value="FFA">FFA (Full Factorial)</option>
+            <option value="SCREEN">SCREEN (Sampled Factorial)</option>
+            <option value="SIM" selected>SIM (Grid)</option>
+          </select>
+        </div>
+        <div>
+          <label>Seed</label>
+          <input type="number" name="seed" value="42">
+        </div>
+        <div>
+          <label>Center Points (BBD)</label>
+          <input type="number" name="center_points" value="3">
+        </div>
+        <div>
+          <label>Max Runs</label>
+          <input type="number" name="max_runs" value="200">
+        </div>
+        <div>
+          <label>Replicates</label>
+          <input type="number" name="replicate_count" value="1">
+        </div>
+        <div>
+          <label>Recipe Block</label>
+          <label class="pure-checkbox">
+            <input type="checkbox" name="recipe_as_block" value="1"> Use recipe as block
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="pure-button" type="button" data-close>Cancel</button>
+      <button class="pure-button pure-button-primary" type="submit">Create Study</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  const doeCreateDialog = document.getElementById('doeCreateDialog');
+  document.getElementById('openDoeCreate')?.addEventListener('click', () => doeCreateDialog?.showModal());
+  document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      doeCreateDialog?.close();
+    });
+  });
+</script>
+<%- include('partials/foot') %>

@@ -1,0 +1,90 @@
+<%- include('partials/head', { title: 'IM Planner | New Experiment' }) %>
+<%- include('partials/nav') %>
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <a class="back-link" href="/" aria-label="Back to experiments">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </a>
+      <h1 class="card-title">Create Experiment</h1>
+    </div>
+    <form class="pure-form pure-form-stacked" action="/experiments" method="post">
+      <div class="form-grid">
+        <div>
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" required>
+        </div>
+        <div>
+          <label for="notes">Description</label>
+          <textarea id="notes" name="notes"></textarea>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 1rem;">
+        <div class="recipes-header">
+          <div>
+            <h3 class="card-title">Recipes for this experiment</h3>
+          </div>
+          <div class="recipes-actions">
+            <input type="search" class="recipe-search" placeholder="Search recipes..." data-recipe-search>
+          </div>
+        </div>
+        <% if (recipes.length === 0) { %>
+          <p class="small-note">No recipes yet. Import on the Recipes page.</p>
+        <% } else { %>
+          <div class="recipe-select-grid">
+            <% recipes.forEach((recipe) => { %>
+              <% const dataText = [recipe.name, recipe.description || '', ...(recipe.components || []).map((c) => `${c.component_name} ${c.phr}`)].join(' ').toLowerCase(); %>
+              <label class="recipe-select-card" data-recipe-text="<%= dataText %>">
+                <input type="checkbox" name="recipe_ids" value="<%= recipe.id %>">
+                <div class="recipe-select-header">
+                  <div class="recipe-select-title"><%- formatInline(recipe.name) %></div>
+                  <% if (recipe.description) { %>
+                    <div class="recipe-select-desc"><%- formatInline(recipe.description) %></div>
+                  <% } %>
+                </div>
+                <div class="recipe-components">
+                  <% const comps = recipe.components || []; %>
+                  <% comps.slice(0, 6).forEach((component) => { %>
+                    <div class="recipe-comp-line">
+                      <span class="recipe-comp-name"><%- formatInline(component.component_name) %></span>
+                      <span class="recipe-comp-qty"><%= formatNumber(component.phr) %></span>
+                    </div>
+                  <% }); %>
+                  <% if (comps.length > 6) { %>
+                    <div class="recipe-comp-more">+<%= comps.length - 6 %> more</div>
+                  <% } %>
+                </div>
+              </label>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
+
+      <button class="pure-button pure-button-primary" type="submit">Create Experiment</button>
+    </form>
+  </div>
+</div>
+<%- include('partials/foot') %>
+
+<script>
+  document.querySelectorAll('.recipe-select-card').forEach((card) => {
+    const input = card.querySelector('input[type="checkbox"]');
+    if (!input) return;
+    card.classList.toggle('active', input.checked);
+    input.addEventListener('change', () => {
+      card.classList.toggle('active', input.checked);
+    });
+  });
+
+  const searchInput = document.querySelector('[data-recipe-search]');
+  if (searchInput) {
+    searchInput.addEventListener('input', (event) => {
+      const query = event.target.value.toLowerCase();
+      document.querySelectorAll('[data-recipe-text]').forEach((card) => {
+        const text = card.getAttribute('data-recipe-text') || '';
+        card.style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
+</script>

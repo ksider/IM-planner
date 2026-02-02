@@ -1,0 +1,3128 @@
+<%- include('partials/head', { title: 'IM Planner | Qualification Step' }) %>
+<%- include('partials/nav') %>
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <a class="back-link" href="/experiments/<%= experimentId %>/qualification" aria-label="Back to qualification">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </a>
+      <h1 class="card-title">Step <%= step.step_number %>: <%= stepDef?.name || 'Qualification Step' %></h1>
+    </div>
+    <div class="run-controls">
+      <button class="pure-button pure-button-secondary" type="button" id="openQualFields">
+        <%= step.step_number === 2 ? 'Manage cavity fields' : 'Manage fields' %>
+      </button>
+    </div>
+    <% if (summaryJson) { %>
+      <pre class="qual-summary"><%= summaryJson %></pre>
+    <% } %>
+  </div>
+
+  <% if (step.step_number === 1) { %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Setup</h2>
+        <div class="setup-actions">
+          <button class="pure-button pure-button-secondary" type="button" id="openRheoSetup">Edit setup</button>
+        </div>
+      </div>
+      <div class="setup-summary">
+        <div>
+          <div class="small-note">Intensification coefficient</div>
+          <div class="setup-value"><%= settings.intensification_coeff ?? 1 %> <span class="small-note"><%= unitByCode.intensification_coeff || '' %></span></div>
+        </div>
+        <div>
+          <div class="small-note">Melt temperature</div>
+          <div class="setup-value"><%= settings.melt_temp_c ?? '-' %> <span class="small-note"><%= unitByCode.melt_temp || '' %></span></div>
+        </div>
+        <% if (settings.custom_fields && settings.custom_fields.length) { %>
+          <% settings.custom_fields.forEach((field) => { %>
+            <div>
+              <div class="small-note"><%- formatInline(field.label) %></div>
+              <div class="setup-value"><%= field.value ?? '-' %> <span class="small-note"><%- formatInline(field.unit || '') %></span></div>
+            </div>
+          <% }); %>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Rheology Runs</h2>
+        <div class="chart-controls">
+          <label>
+            X-axis
+            <select id="rheoXAxis">
+              <option value="inj_speed">Injection speed</option>
+              <option value="shear_rate_proxy">Shear rate</option>
+            </select>
+          </label>
+        </div>
+        <button class="icon-button" type="button" id="rheoAddRow" title="Add row">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
+      </div>
+      <% const fieldByCode = new Map(); fields.forEach((field) => fieldByCode.set(field.code, field)); %>
+      <% const injField = fieldByCode.get('inj_speed'); %>
+      <% const pressField = fieldByCode.get('peak_inj_pressure_bar'); %>
+      <% const fillField = fieldByCode.get('fill_time_s'); %>
+      <% const shearRateField = fieldByCode.get('shear_rate_proxy'); %>
+      <% const viscField = fieldByCode.get('rel_viscosity'); %>
+      <% const injFieldId = injField?.id ?? null; %>
+      <% const pressFieldId = pressField?.id ?? null; %>
+      <% const fillFieldId = fillField?.id ?? null; %>
+      <% const baseCodes = new Set(['inj_speed','peak_inj_pressure_bar','fill_time_s','shear_rate_proxy','rel_viscosity']); %>
+      <% const extraFields = fields.filter((field) => !field.is_derived && !baseCodes.has(field.code) && field.is_enabled); %>
+      <input type="hidden" id="rheoFieldIds"
+        data-inj="<%= injFieldId ?? '' %>"
+        data-press="<%= pressFieldId ?? '' %>"
+        data-fill="<%= fillFieldId ?? '' %>">
+      <div class="table-scroll">
+        <table class="pure-table table-compact rheo-table">
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Injection speed <span class="small-note"><%= unitByCode.inj_speed || injField?.unit || '' %></span></th>
+              <th>Press pressure <span class="small-note"><%= (unitByCode.peak_inj_pressure || pressField?.unit || '') %></span></th>
+              <th>Fill time <span class="small-note"><%= (unitByCode.fill_time || fillField?.unit || '') %></span></th>
+      <% extraFields.forEach((field) => { %>
+        <th data-extra-field data-field-id="<%= field.id %>" data-field-type="<%= field.field_type %>"><%- formatInline(field.label) %><% if (field.unit) { %> <span class="small-note"><%= field.unit %></span><% } %></th>
+      <% }); %>
+              <th data-rheo-derived>Shear rate <span class="small-note"><%= shearRateField?.unit || '' %></span></th>
+              <th>Rel. viscosity <span class="small-note"><%= viscField?.unit || '' %></span></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (runs.length === 0) { %>
+              <tr><td colspan="<%= 7 + extraFields.length %>">No runs yet.</td></tr>
+            <% } %>
+            <% runs.forEach((run) => { %>
+              <% const runValues = runValueMap[String(run.id)] || {}; %>
+              <% const injVal = injFieldId ? (runValues[String(injFieldId)]?.value_real ?? '') : ''; %>
+              <% const pressVal = pressFieldId ? (runValues[String(pressFieldId)]?.value_real ?? '') : ''; %>
+              <% const fillVal = fillFieldId ? (runValues[String(fillFieldId)]?.value_real ?? '') : ''; %>
+              <% const shearRateVal = shearRateField?.id ? (runValues[String(shearRateField.id)]?.value_real ?? '') : ''; %>
+              <% const viscVal = viscField?.id ? (runValues[String(viscField.id)]?.value_real ?? '') : ''; %>
+              <tr data-run-row data-run-id="<%= run.id %>">
+                <td><strong><%= run.run_code %></strong></td>
+                <td><input type="number" step="any" data-field-id="<%= injFieldId %>" data-field-type="number" value="<%= injVal %>"></td>
+                <td><input type="number" step="any" data-field-id="<%= pressFieldId %>" data-field-type="number" value="<%= pressVal %>"></td>
+                <td><input type="number" step="any" data-field-id="<%= fillFieldId %>" data-field-type="number" value="<%= fillVal %>"></td>
+                <% extraFields.forEach((field) => { %>
+                  <% const val = runValues[String(field.id)]; %>
+                  <td>
+                    <% if (field.field_type === 'boolean') { %>
+                      <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="boolean" <%= val?.value_real === 1 ? 'checked' : '' %>>
+                    <% } else if (field.field_type === 'text') { %>
+                      <input type="text" data-field-id="<%= field.id %>" data-field-type="text" value="<%- formatInline(val?.value_text || '') %>">
+                    <% } else { %>
+                      <input type="number" step="any" data-field-id="<%= field.id %>" data-field-type="number" value="<%= val?.value_real ?? '' %>">
+                    <% } %>
+                  </td>
+                <% }); %>
+                <td data-derived="shear_rate_proxy"><%= formatNumber(shearRateVal) %></td>
+                <td data-derived="rel_viscosity"><%= formatNumber(viscVal) %></td>
+                <td>
+                  <button class="icon-button danger" type="button" data-run-delete title="Delete row">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <div class="chart-card">
+        <div id="rheoChart" style="width: 100%; height: 320px;"></div>
+        <div class="chart-actions">
+          <button class="pure-button pure-button-secondary" type="button" id="rheoAnalyze">Analyze curve</button>
+          <label class="inline-field">
+            Recommended injection speed
+            <input type="number" step="any" id="rheoRecommended" value="<%= settings.recommended_inj_speed ?? '' %>">
+          </label>
+          <span class="small-note">cm3/s</span>
+        </div>
+      </div>
+    </div>
+  <% } else if (step.step_number === 2) { %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Setup</h2>
+        <div class="setup-actions">
+          <button class="pure-button pure-button-secondary" type="button" id="openCavitySetup">Edit setup</button>
+          <span class="small-note">Optional step</span>
+        </div>
+      </div>
+      <div class="setup-summary">
+        <div>
+          <div class="small-note">Injection speed</div>
+          <div class="setup-value"><span id="cavityInjSpeedValue"><%= settings.inj_speed ?? step1Recommended ?? '-' %></span> <span class="small-note">cm3/s</span></div>
+        </div>
+        <div>
+          <div class="small-note">Target weight</div>
+          <div class="setup-value"><span id="cavityTargetWeightValue"><%= settings.target_weight_g ?? '-' %></span> <span class="small-note">g</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Cavities</h2>
+        <button class="icon-button" type="button" id="addCavityBtn" title="Add cavity">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
+      </div>
+      <% const fieldByCode2 = new Map(); fields.forEach((field) => fieldByCode2.set(field.code, field)); %>
+      <% const cavityIndices = Array.from(new Set(fields.map((field) => { const match = /^cavity(\d+)_weight_g$/.exec(field.code); return match ? Number(match[1]) : null; }).filter((v) => Number.isFinite(v)))).sort((a, b) => a - b); %>
+      <% const cavityFieldDefs = new Map(); %>
+      <% fields.forEach((field) => { %>
+        <% const match = /^cavity(\d+)_(.+)$/.exec(field.code); %>
+        <% if (!match) return; %>
+        <% const suffix = match[2]; %>
+        <% if (suffix === 'weight_g' || suffix === 'defect_tags') return; %>
+        <% if (!cavityFieldDefs.has(suffix)) { %>
+          <% const baseLabel = field.label.replace(/^Cavity\\s+\\d+\\s+/i, ''); %>
+          <% cavityFieldDefs.set(suffix, { suffix, label: baseLabel || field.label, field_type: field.field_type, unit: field.unit }); %>
+        <% } %>
+      <% }); %>
+      <% const variationField = fieldByCode2.get('cavity_weight_variation_pct'); %>
+      <% const run = runs[0]; %>
+      <% const runValues2 = run ? (runValueMap[String(run.id)] || {}) : {}; %>
+      <% const variationVal = variationField ? (runValues2[String(variationField.id)]?.value_real ?? '') : ''; %>
+      <% const parseTags = (field) => { let tags = []; if (field?.allowed_values_json) { try { const parsed = JSON.parse(field.allowed_values_json); if (Array.isArray(parsed)) tags = parsed; } catch {} } return tags; }; %>
+      <% const parseSelected = (field) => { let selected = []; if (field && runValues2[String(field.id)]?.value_tags_json) { try { const parsed = JSON.parse(runValues2[String(field.id)]?.value_tags_json); if (Array.isArray(parsed)) selected = parsed.map(String); } catch {} } return selected; }; %>
+      <input type="hidden" id="cavityRunId" value="<%= run?.id ?? '' %>">
+      <div class="table-scroll">
+        <table class="pure-table table-compact">
+          <thead>
+            <tr>
+              <th>Cavity</th>
+              <th>Weight (g)</th>
+              <th>Fill %</th>
+              <% cavityFieldDefs.forEach((def) => { %>
+                <th data-cavity-custom data-suffix="<%= def.suffix %>" data-type="<%= def.field_type %>" data-unit="<%= def.unit || '' %>">
+                  <%- formatInline(def.label) %><% if (def.unit) { %> <span class="small-note"><%= def.unit %></span><% } %>
+                </th>
+              <% }); %>
+              <th data-cavity-defects>Defects</th>
+              <th data-cavity-actions></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% cavityIndices.forEach((idx) => { %>
+              <% const cavField = fieldByCode2.get(`cavity${idx}_weight_g`); %>
+              <% const defectField = fieldByCode2.get(`cavity${idx}_defect_tags`); %>
+              <% const cavVal = cavField ? (runValues2[String(cavField.id)]?.value_real ?? '') : ''; %>
+              <% const cavityTags = parseTags(defectField); %>
+              <% const selected = parseSelected(defectField); %>
+              <tr data-cavity-row data-cavity-index="<%= idx %>">
+                <td>Cavity <%= idx %></td>
+                <td><input type="number" step="any" data-field-id="<%= cavField?.id %>" data-field-type="number" data-cavity-weight value="<%= cavVal %>"></td>
+                <td><span class="small-note" data-cavity-fill>-</span></td>
+                <% cavityFieldDefs.forEach((def) => { %>
+                  <% const customField = fieldByCode2.get(`cavity${idx}_${def.suffix}`); %>
+                  <% const customVal = customField ? (runValues2[String(customField.id)]?.value_real ?? runValues2[String(customField.id)]?.value_text ?? '') : ''; %>
+                  <td data-cavity-suffix="<%= def.suffix %>">
+                    <% if (def.field_type === 'boolean') { %>
+                      <input type="checkbox" data-field-id="<%= customField?.id %>" data-field-type="boolean" <%= customVal === 1 ? 'checked' : '' %>>
+                    <% } else if (def.field_type === 'text') { %>
+                      <input type="text" data-field-id="<%= customField?.id %>" data-field-type="text" value="<%- formatInline(customVal) %>">
+                    <% } else { %>
+                      <input type="number" step="any" data-field-id="<%= customField?.id %>" data-field-type="number" value="<%= customVal %>">
+                    <% } %>
+                  </td>
+                <% }); %>
+                <td>
+                  <div class="tag-grid">
+                    <% cavityTags.forEach((tag) => { %>
+                      <label class="tag-toggle">
+                        <input type="checkbox" data-field-id="<%= defectField?.id %>" data-tag-value="<%= tag %>" <%= selected.includes(tag) ? 'checked' : '' %>>
+                        <span class="tag-chip"><%- formatInline(tag) %></span>
+                      </label>
+                    <% }); %>
+                  </div>
+                </td>
+                <td>
+                  <button class="icon-button danger" type="button" data-cavity-delete title="Delete cavity">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="setup-summary" style="margin-top: 1rem;">
+        <div>
+          <div class="small-note">Max variation</div>
+          <div class="setup-value"><span id="cavityVariationValue"><%= formatNumber(variationVal, 2) %></span> %</div>
+        </div>
+      </div>
+    </div>
+
+    <dialog class="modal-frame" id="cavitySetupDialog">
+      <div class="modal-header">
+        <strong>Cavity balance setup</strong>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid-two">
+          <div>
+            <label>Injection speed</label>
+            <input type="number" step="any" id="cavityInjSpeed" value="<%= settings.inj_speed ?? step1Recommended ?? '' %>">
+          </div>
+          <div>
+            <label>Target weight (g)</label>
+            <input type="number" step="any" id="cavityTargetWeight" value="<%= settings.target_weight_g ?? '' %>">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="save-status" id="cavitySetupStatus">Saved</span>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+    </dialog>
+
+  <% } else if (step.step_number === 3) { %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Setup</h2>
+        <div class="setup-actions">
+          <button class="pure-button pure-button-secondary" type="button" id="openPressureSetup">Edit setup</button>
+        </div>
+      </div>
+      <div class="setup-summary">
+        <div>
+          <div class="small-note">Injection speed</div>
+          <div class="setup-value"><span id="pressureInjSpeedValue"><%= settings.inj_speed ?? step1Recommended ?? '-' %></span> <span class="small-note">cm3/s</span></div>
+        </div>
+        <div>
+          <div class="small-note">Machine max pressure</div>
+          <div class="setup-value"><span id="pressureMaxValue"><%= settings.machine_max_pressure_bar ?? '-' %></span> <span class="small-note">bar</span></div>
+        </div>
+        <div>
+          <div class="small-note">Intensification</div>
+          <div class="setup-value"><span id="pressureIntValue"><%= settings.intensification_coeff ?? 1 %></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Pressure points</h2>
+        <button class="icon-button" type="button" id="addPressurePoint" title="Add point">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
+      </div>
+      <% const fieldByCode3 = new Map(); fields.forEach((field) => fieldByCode3.set(field.code, field)); %>
+      <% const pressureDefaults = [
+        { code: "pressure_air_shot_bar", label: "Only nozzle (air shot)" },
+        { code: "pressure_sprue_bar", label: "Sprue only" },
+        { code: "pressure_runner_bar", label: "Sprue + runners" },
+        { code: "pressure_part_10_bar", label: "Part 10%" },
+        { code: "pressure_part_50_bar", label: "Part 50%" },
+        { code: "pressure_part_95_bar", label: "Part 95%" }
+      ]; %>
+      <% const pressureSections = fields.filter((field) => /^pressure_.+_bar$/.test(field.code)); %>
+      <% const pressureSectionLabels = new Map(); %>
+      <% pressureSections.forEach((field) => { %>
+        <% const match = /^pressure_(.+)_bar$/.exec(field.code); %>
+        <% if (!match) return; %>
+        <% pressureSectionLabels.set(match[1], field.label); %>
+      <% }); %>
+      <% const customPressureFields = pressureSections.filter((field) => !pressureDefaults.find((def) => def.code === field.code)); %>
+      <% const pressureFieldDefs = new Map(); %>
+      <% fields.forEach((field) => { %>
+        <% const match = /^pressure_(.+)_(.+)$/.exec(field.code); %>
+        <% if (!match) return; %>
+        <% const sectionCode = match[1]; %>
+        <% const suffix = match[2]; %>
+        <% if (!pressureSectionLabels.has(sectionCode)) return; %>
+        <% if (suffix === 'bar') return; %>
+        <% if (pressureFieldDefs.has(suffix)) return; %>
+        <% const sectionLabel = pressureSectionLabels.get(sectionCode) || ''; %>
+        <% let baseLabel = field.label; %>
+        <% if (sectionLabel && baseLabel.startsWith(sectionLabel + ' ')) { %>
+          <% baseLabel = baseLabel.slice(sectionLabel.length + 1); %>
+        <% } %>
+        <% pressureFieldDefs.set(suffix, { suffix, label: baseLabel || field.label, unit: field.unit, field_type: field.field_type }); %>
+      <% }); %>
+      <% const run = runs[0]; %>
+      <% const runValues3 = run ? (runValueMap[String(run.id)] || {}) : {}; %>
+      <input type="hidden" id="pressureRunId" value="<%= run?.id ?? '' %>">
+      <div class="table-scroll">
+        <table class="pure-table table-compact">
+          <thead>
+            <tr>
+              <th>Section</th>
+              <th>Press pressure (bar)</th>
+              <% pressureFieldDefs.forEach((def) => { %>
+                <th data-pressure-custom data-suffix="<%= def.suffix %>" data-type="<%= def.field_type %>"><%- formatInline(def.label) %><% if (def.unit) { %> <span class="small-note"><%= def.unit %></span><% } %></th>
+              <% }); %>
+              <th>Peak pressure (bar)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="pressurePointBody">
+            <% pressureDefaults.forEach((row) => { %>
+              <% const field = fieldByCode3.get(row.code); %>
+              <% const val = field ? (runValues3[String(field.id)]?.value_real ?? '') : ''; %>
+              <tr data-pressure-row data-field-id="<%= field?.id %>" data-label="<%= row.label %>" data-section-code="<%= row.code.replace(/^pressure_/, '').replace(/_bar$/, '') %>">
+                <td><%= row.label %></td>
+                <td><input type="number" step="any" data-field-id="<%= field?.id %>" data-field-type="number" data-pressure-base value="<%= val %>"></td>
+                <% pressureFieldDefs.forEach((def) => { %>
+                  <% const customField = fieldByCode3.get(`pressure_${row.code.replace(/^pressure_/, '').replace(/_bar$/, '')}_${def.suffix}`); %>
+                  <% const customVal = customField ? (runValues3[String(customField.id)]?.value_real ?? runValues3[String(customField.id)]?.value_text ?? '') : ''; %>
+                  <td data-pressure-suffix="<%= def.suffix %>">
+                    <% if (def.field_type === 'boolean') { %>
+                      <input type="checkbox" data-field-id="<%= customField?.id %>" data-field-type="boolean" <%= customVal === 1 ? 'checked' : '' %>>
+                    <% } else if (def.field_type === 'text') { %>
+                      <input type="text" data-field-id="<%= customField?.id %>" data-field-type="text" value="<%- formatInline(customVal) %>">
+                    <% } else { %>
+                      <input type="number" step="any" data-field-id="<%= customField?.id %>" data-field-type="number" value="<%= customVal %>">
+                    <% } %>
+                  </td>
+                <% }); %>
+                <td><span class="small-note" data-peak-value>-</span></td>
+                <td></td>
+              </tr>
+            <% }); %>
+            <% customPressureFields.forEach((field) => { %>
+              <% const val = runValues3[String(field.id)]?.value_real ?? ''; %>
+              <tr data-pressure-row data-field-id="<%= field.id %>" data-label="<%- formatInline(field.label) %>" data-section-code="<%= field.code.replace(/^pressure_/, '').replace(/_bar$/, '') %>">
+                <td><%- formatInline(field.label) %></td>
+                <td><input type="number" step="any" data-field-id="<%= field.id %>" data-field-type="number" data-pressure-base value="<%= val %>"></td>
+                <% pressureFieldDefs.forEach((def) => { %>
+                  <% const sectionCode = field.code.replace(/^pressure_/, '').replace(/_bar$/, ''); %>
+                  <% const customField = fieldByCode3.get(`pressure_${sectionCode}_${def.suffix}`); %>
+                  <% const customVal = customField ? (runValues3[String(customField.id)]?.value_real ?? runValues3[String(customField.id)]?.value_text ?? '') : ''; %>
+                  <td data-pressure-suffix="<%= def.suffix %>">
+                    <% if (def.field_type === 'boolean') { %>
+                      <input type="checkbox" data-field-id="<%= customField?.id %>" data-field-type="boolean" <%= customVal === 1 ? 'checked' : '' %>>
+                    <% } else if (def.field_type === 'text') { %>
+                      <input type="text" data-field-id="<%= customField?.id %>" data-field-type="text" value="<%- formatInline(customVal) %>">
+                    <% } else { %>
+                      <input type="number" step="any" data-field-id="<%= customField?.id %>" data-field-type="number" value="<%= customVal %>">
+                    <% } %>
+                  </td>
+                <% }); %>
+                <td><span class="small-note" data-peak-value>-</span></td>
+                <td>
+                  <button class="icon-button danger" type="button" data-pressure-delete title="Delete point">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <div class="chart-card" style="margin-top: 1rem;">
+        <div id="pressureChart" style="width: 100%; height: 320px;"></div>
+      </div>
+    </div>
+
+    <dialog class="modal-frame" id="pressureSetupDialog">
+      <div class="modal-header">
+        <strong>Pressure drop setup</strong>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid-two">
+          <div>
+            <label>Injection speed</label>
+            <input type="number" step="any" id="pressureInjSpeed" value="<%= settings.inj_speed ?? step1Recommended ?? '' %>">
+          </div>
+          <div>
+            <label>Machine max pressure (bar)</label>
+            <input type="number" step="any" id="pressureMachineMax" value="<%= settings.machine_max_pressure_bar ?? '' %>">
+          </div>
+          <div>
+            <label>Intensification coeff</label>
+            <input type="number" step="any" id="pressureIntCoeff" value="<%= settings.intensification_coeff ?? 1 %>">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="save-status" id="pressureSetupStatus">Saved</span>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+    </dialog>
+
+  <% } else if (step.step_number === 4) { %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Setup</h2>
+        <div class="setup-actions">
+          <button class="pure-button pure-button-secondary" type="button" id="openCpwSetup">Edit setup</button>
+        </div>
+      </div>
+      <div class="setup-summary">
+        <div>
+          <div class="small-note">Injection speed</div>
+          <div class="setup-value"><span id="cpwInjSpeedValue"><%= settings.inj_speed ?? step1Recommended ?? '-' %></span> <span class="small-note">cm3/s</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Cosmetic process window</h2>
+        <button class="icon-button" type="button" id="cpwAddRun" title="Add run">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
+      </div>
+      <% const fieldByCode4 = new Map(); fields.forEach((field) => fieldByCode4.set(field.code, field)); %>
+      <% const tempField = fieldByCode4.get('melt_temp_c'); %>
+      <% const holdField = fieldByCode4.get('hold_pressure_bar'); %>
+      <% const shortField = fieldByCode4.get('defect_short_shot'); %>
+      <% const flashField = fieldByCode4.get('defect_flash'); %>
+      <% const baseCodes4 = new Set(['melt_temp_c','hold_pressure_bar','defect_short_shot','defect_flash','cosmetic_ok','defect_tags']); %>
+      <% const extraFields4 = fields.filter((field) => !field.is_derived && !baseCodes4.has(field.code) && field.is_enabled); %>
+      <input type="hidden" id="cpwFieldIds"
+        data-temp="<%= tempField?.id ?? '' %>"
+        data-hold="<%= holdField?.id ?? '' %>"
+        data-short="<%= shortField?.id ?? '' %>"
+        data-flash="<%= flashField?.id ?? '' %>">
+      <div class="table-scroll">
+        <table class="pure-table table-compact">
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Temperature <span class="small-note">°C</span></th>
+              <th>Hold pressure <span class="small-note">bar</span></th>
+              <th>Short shot</th>
+              <th>Flash</th>
+              <% extraFields4.forEach((field) => { %>
+                <th data-extra-field data-field-id="<%= field.id %>" data-field-type="<%= field.field_type %>">
+                  <%- formatInline(field.label) %><% if (field.unit) { %> <span class="small-note"><%= field.unit %></span><% } %>
+                </th>
+              <% }); %>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (runs.length === 0) { %>
+              <tr><td colspan="<%= 6 + extraFields4.length %>">No runs yet.</td></tr>
+            <% } %>
+            <% runs.forEach((run) => { %>
+              <% const runValues4 = runValueMap[String(run.id)] || {}; %>
+              <% const tempVal = tempField ? (runValues4[String(tempField.id)]?.value_real ?? '') : ''; %>
+              <% const holdVal = holdField ? (runValues4[String(holdField.id)]?.value_real ?? '') : ''; %>
+              <% const shortVal = shortField ? (runValues4[String(shortField.id)]?.value_real ?? 0) : 0; %>
+              <% const flashVal = flashField ? (runValues4[String(flashField.id)]?.value_real ?? 0) : 0; %>
+              <tr data-run-row data-run-id="<%= run.id %>">
+                <td><strong><%= run.run_code %></strong></td>
+                <td><input type="number" step="any" data-field-id="<%= tempField?.id %>" data-field-type="number" value="<%= tempVal %>"></td>
+                <td><input type="number" step="any" data-field-id="<%= holdField?.id %>" data-field-type="number" value="<%= holdVal %>"></td>
+                <td><input type="checkbox" data-field-id="<%= shortField?.id %>" data-field-type="boolean" <%= shortVal === 1 ? 'checked' : '' %>></td>
+                <td><input type="checkbox" data-field-id="<%= flashField?.id %>" data-field-type="boolean" <%= flashVal === 1 ? 'checked' : '' %>></td>
+                <% extraFields4.forEach((field) => { %>
+                  <% const val = runValues4[String(field.id)]; %>
+                  <td>
+                    <% if (field.field_type === 'boolean') { %>
+                      <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="boolean" <%= val?.value_real === 1 ? 'checked' : '' %>>
+                    <% } else if (field.field_type === 'text') { %>
+                      <input type="text" data-field-id="<%= field.id %>" data-field-type="text" value="<%- formatInline(val?.value_text || '') %>">
+                    <% } else { %>
+                      <input type="number" step="any" data-field-id="<%= field.id %>" data-field-type="number" value="<%= val?.value_real ?? '' %>">
+                    <% } %>
+                  </td>
+                <% }); %>
+                <td>
+                  <button class="icon-button danger" type="button" data-run-delete title="Delete row">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="chart-card" style="margin-top: 1rem;">
+        <div id="cpwChart" style="width: 100%; height: 320px;"></div>
+        <div class="chart-actions">
+          <span class="small-note" id="cpwGoodCount">Good points: 0 / 4</span>
+          <span class="small-note">Center: <span id="cpwCenterTemp">-</span> °C, <span id="cpwCenterPressure">-</span> bar</span>
+        </div>
+      </div>
+    </div>
+
+    <dialog class="modal-frame" id="cpwSetupDialog">
+      <div class="modal-header">
+        <strong>Cosmetic window setup</strong>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid-two">
+          <div>
+            <label>Injection speed</label>
+            <input type="number" step="any" id="cpwInjSpeed" value="<%= settings.inj_speed ?? step1Recommended ?? '' %>">
+          </div>
+        </div>
+        <fieldset class="card" style="margin-top: 1rem;">
+          <legend class="card-title">Run generator</legend>
+          <div class="grid-two">
+            <div>
+              <label>Temperature range (°C)</label>
+              <input type="text" id="cpwTempRange" placeholder="min, max" value="<%= (settings.cpw_temp_low_c != null || settings.cpw_temp_high_c != null) ? `${settings.cpw_temp_low_c ?? ''}, ${settings.cpw_temp_high_c ?? ''}` : '' %>">
+            </div>
+            <div>
+              <label>Hold pressure range (bar)</label>
+              <input type="text" id="cpwHoldRange" placeholder="min, max" value="<%= (settings.cpw_hold_low_bar != null || settings.cpw_hold_high_bar != null) ? `${settings.cpw_hold_low_bar ?? ''}, ${settings.cpw_hold_high_bar ?? ''}` : '' %>">
+            </div>
+            <div>
+              <label>Generate mode</label>
+              <select id="cpwGenMode">
+                <option value="corners" <%= settings.cpw_gen_mode === 'corners' ? 'selected' : '' %>>4 corners</option>
+                <option value="grid_mid" <%= settings.cpw_gen_mode === 'grid_mid' ? 'selected' : '' %>>3×3 (low/mid/high)</option>
+                <option value="grid" <%= settings.cpw_gen_mode === 'grid' ? 'selected' : '' %>>Grid by step</option>
+              </select>
+            </div>
+            <div>
+              <label>Temp step (°C)</label>
+              <input type="number" step="any" id="cpwTempStep" value="<%= settings.cpw_temp_step_c ?? '' %>">
+            </div>
+            <div>
+              <label>Pressure step (bar)</label>
+              <input type="number" step="any" id="cpwHoldStep" value="<%= settings.cpw_hold_step_bar ?? '' %>">
+            </div>
+          </div>
+          <div style="margin-top: 0.5rem;">
+            <button class="pure-button pure-button-primary" type="button" id="cpwGenerateRuns">Generate runs</button>
+          </div>
+        </fieldset>
+      </div>
+      <div class="modal-footer">
+        <span class="save-status" id="cpwSetupStatus">Saved</span>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+    </dialog>
+
+  <% } else { %>
+    <div class="card">
+      <h2 class="card-title">Runs</h2>
+      <table class="pure-table table-compact">
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Done</th>
+            <th>Exclude</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (runs.length === 0) { %>
+            <tr><td colspan="3">No runs yet.</td></tr>
+          <% } %>
+          <% runs.forEach((run) => { %>
+            <tr class="<%= run.done ? 'run-done' : '' %> <%= run.exclude_from_analysis ? 'run-excluded' : '' %>">
+              <td><a href="/qual-runs/<%= run.id %>"><%= run.run_code %></a></td>
+              <td><%= run.done ? 'Yes' : 'No' %></td>
+              <td><%= run.exclude_from_analysis ? 'Yes' : 'No' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<dialog class="modal-frame" id="qualFieldDialog">
+  <div class="modal-header">
+    <strong>Qualification fields</strong>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+  <div class="modal-body">
+    <% if (step.step_number === 2) { %>
+      <% const cavityDefs = new Map(); %>
+      <% fields.forEach((field) => { %>
+        <% const match = /^cavity(\d+)_(.+)$/.exec(field.code); %>
+        <% if (!match) return; %>
+        <% const suffix = match[2]; %>
+        <% if (suffix === 'weight_g' || suffix === 'defect_tags') return; %>
+        <% if (!cavityDefs.has(suffix)) { %>
+          <% const baseLabel = field.label.replace(/^Cavity\s+\d+\s+/i, ''); %>
+          <% cavityDefs.set(suffix, { suffix, label: baseLabel || field.label, unit: field.unit, field_type: field.field_type }); %>
+        <% } %>
+      <% }); %>
+      <div class="small-note">Manage cavity-specific columns. Changes apply to all cavities.</div>
+      <div class="field-toolbar">
+        <label>
+          Library
+          <select id="qualLibrarySelect">
+            <option value="">Select parameter…</option>
+            <% globalParams.forEach((param) => { %>
+              <option
+                value="<%= param.id %>"
+                data-code="<%= param.code %>"
+                data-label="<%- formatInline(param.label) %>"
+                data-unit="<%= param.unit || '' %>"
+                data-type="<%= param.field_type %>"
+              >
+                <%- formatInline(param.label) %> (<%= param.code %>)
+              </option>
+            <% }); %>
+          </select>
+        </label>
+        <button class="pure-button" type="button" id="qualImportField">Add from library</button>
+        <a class="pure-button pure-button-secondary" href="/param-library">Open library</a>
+      </div>
+      <table class="pure-table table-compact qual-field-table">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Label</th>
+            <th>Type</th>
+            <th>Unit</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="qualFieldBody">
+          <% cavityDefs.forEach((def) => { %>
+            <tr data-cavity-field data-suffix="<%= def.suffix %>">
+              <td><input data-field-code value="<%= def.suffix %>" readonly></td>
+              <td><input data-field-label value="<%- formatInline(def.label) %>"></td>
+              <td>
+                <select data-field-type>
+                  <option value="number" <%= def.field_type === 'number' ? 'selected' : '' %>>number</option>
+                  <option value="text" <%= def.field_type === 'text' ? 'selected' : '' %>>text</option>
+                  <option value="boolean" <%= def.field_type === 'boolean' ? 'selected' : '' %>>boolean</option>
+                </select>
+              </td>
+              <td><input data-field-unit value="<%= def.unit || '' %>"></td>
+              <td>
+                <button class="icon-button danger" type="button" data-cavity-field-delete title="Delete field">
+                  <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                </button>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+      <div class="card" style="margin-top: 1rem;">
+        <h3 class="card-title">Custom Field</h3>
+        <form class="pure-form pure-form-stacked" id="qualCustomFieldForm">
+          <div class="field-grid">
+            <div>
+              <label>Code</label>
+              <input type="text" name="code" placeholder="custom_param" required>
+            </div>
+            <div>
+              <label>Label</label>
+              <input type="text" name="label" placeholder="Custom Parameter" required>
+            </div>
+            <div>
+              <label>Unit</label>
+              <input type="text" name="unit" placeholder="">
+            </div>
+            <div>
+              <label>Type</label>
+              <select name="field_type">
+                <option value="number" selected>Number</option>
+                <option value="text">Text</option>
+                <option value="boolean">Boolean</option>
+              </select>
+            </div>
+          </div>
+          <button class="pure-button pure-button-primary" type="submit">Add Field</button>
+        </form>
+      </div>
+    <% } else if (step.step_number === 3) { %>
+      <% const pressureColumnDefs = new Map(); %>
+      <% const pressureSectionLabels = new Map(); %>
+      <% fields.forEach((field) => { %>
+        <% const match = /^pressure_(.+)_bar$/.exec(field.code); %>
+        <% if (!match) return; %>
+        <% const sectionCode = match[1]; %>
+        <% pressureSectionLabels.set(sectionCode, field.label); %>
+      <% }); %>
+      <% fields.forEach((field) => { %>
+        <% const match = /^pressure_(.+)_(.+)$/.exec(field.code); %>
+        <% if (!match) return; %>
+        <% const sectionCode = match[1]; %>
+        <% const suffix = match[2]; %>
+        <% if (!pressureSectionLabels.has(sectionCode)) return; %>
+        <% if (suffix === 'bar') return; %>
+        <% if (pressureColumnDefs.has(suffix)) return; %>
+        <% const sectionLabel = pressureSectionLabels.get(sectionCode) || ''; %>
+        <% let baseLabel = field.label; %>
+        <% if (sectionLabel && baseLabel.startsWith(sectionLabel + ' ')) { %>
+          <% baseLabel = baseLabel.slice(sectionLabel.length + 1); %>
+        <% } %>
+        <% pressureColumnDefs.set(suffix, { suffix, label: baseLabel || field.label, unit: field.unit, field_type: field.field_type }); %>
+      <% }); %>
+      <div class="small-note">Manage pressure columns (per section).</div>
+      <div class="field-toolbar">
+        <label>
+          Library
+          <select id="qualLibrarySelect">
+            <option value="">Select parameter…</option>
+            <% globalParams.forEach((param) => { %>
+              <option
+                value="<%= param.id %>"
+                data-code="<%= param.code %>"
+                data-label="<%- formatInline(param.label) %>"
+                data-unit="<%= param.unit || '' %>"
+                data-type="<%= param.field_type %>"
+              >
+                <%- formatInline(param.label) %> (<%= param.code %>)
+              </option>
+            <% }); %>
+          </select>
+        </label>
+        <button class="pure-button" type="button" id="qualImportField">Add from library</button>
+      </div>
+      <table class="pure-table table-compact qual-field-table">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Label</th>
+            <th>Type</th>
+            <th>Unit</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="qualFieldBody">
+          <% pressureColumnDefs.forEach((def) => { %>
+            <tr data-pressure-field data-suffix="<%= def.suffix %>">
+              <td><input data-field-code value="<%= def.suffix %>" readonly></td>
+              <td><input data-field-label value="<%- formatInline(def.label) %>"></td>
+              <td>
+                <select data-field-type>
+                  <option value="number" <%= def.field_type === 'number' ? 'selected' : '' %>>number</option>
+                  <option value="text" <%= def.field_type === 'text' ? 'selected' : '' %>>text</option>
+                  <option value="boolean" <%= def.field_type === 'boolean' ? 'selected' : '' %>>boolean</option>
+                </select>
+              </td>
+              <td><input data-field-unit value="<%= def.unit || '' %>"></td>
+              <td>
+                <button class="icon-button danger" type="button" data-field-delete title="Delete field">
+                  <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                </button>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+      <div class="card" style="margin-top: 1rem;">
+        <h3 class="card-title">Custom Point</h3>
+        <form class="pure-form pure-form-stacked" id="qualCustomFieldForm">
+          <div class="field-grid">
+            <div>
+              <label>Code</label>
+              <input type="text" name="code" placeholder="custom_param" required>
+            </div>
+            <div>
+              <label>Label</label>
+              <input type="text" name="label" placeholder="Custom Parameter" required>
+            </div>
+            <div>
+              <label>Unit</label>
+              <input type="text" name="unit" placeholder="">
+            </div>
+            <div>
+              <label>Type</label>
+              <select name="field_type">
+                <option value="number" selected>Number</option>
+                <option value="text">Text</option>
+                <option value="boolean">Boolean</option>
+              </select>
+            </div>
+          </div>
+          <button class="pure-button pure-button-primary" type="submit">Add Column</button>
+        </form>
+      </div>
+    <% } else { %>
+      <% const lockedCodes = step.step_number === 1
+        ? new Set(['inj_speed','peak_inj_pressure_bar','fill_time_s','shear_rate_proxy','rel_viscosity'])
+        : new Set(); %>
+      <div class="small-note">Changes autosave. Disable a field to hide it in runs.</div>
+      <div class="field-toolbar">
+        <label>
+          Library
+          <select id="qualLibrarySelect">
+            <option value="">Select parameter…</option>
+            <% globalParams.forEach((param) => { %>
+              <option
+                value="<%= param.id %>"
+                data-code="<%= param.code %>"
+                data-label="<%- formatInline(param.label) %>"
+                data-unit="<%= param.unit || '' %>"
+                data-group="<%= param.group_label || '' %>"
+                data-type="<%= param.field_type %>"
+                data-allowed="<%= param.allowed_values_json || '' %>"
+              >
+                <%- formatInline(param.label) %> (<%= param.code %>)
+              </option>
+            <% }); %>
+          </select>
+        </label>
+        <button class="pure-button" type="button" id="qualImportField">Add from library</button>
+        <a class="pure-button pure-button-secondary" href="/param-library">Open library</a>
+      </div>
+      <table class="pure-table table-compact qual-field-table">
+        <thead>
+          <tr>
+            <th>On</th>
+            <th>Code</th>
+            <th>Label</th>
+            <th>Type</th>
+            <th>Unit</th>
+            <th>Group</th>
+            <th>Required</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="qualFieldBody">
+          <% fields.forEach((field) => { %>
+            <% const isLocked = lockedCodes.has(field.code); %>
+            <tr data-field-id="<%= field.id %>" data-field-code="<%= field.code %>" <%= isLocked ? 'data-locked' : '' %>>
+              <td><input type="checkbox" data-field-enabled <%= field.is_enabled ? 'checked' : '' %> <%= isLocked ? 'disabled' : '' %>></td>
+              <td><input data-field-code value="<%= field.code %>" <%= isLocked ? 'readonly' : '' %>></td>
+              <td><input data-field-label value="<%- formatInline(field.label) %>" <%= isLocked ? 'readonly' : '' %>></td>
+              <td>
+                <select data-field-type <%= isLocked ? 'disabled' : '' %>>
+                  <option value="number" <%= field.field_type === 'number' ? 'selected' : '' %>>number</option>
+                  <option value="text" <%= field.field_type === 'text' ? 'selected' : '' %>>text</option>
+                  <option value="tag" <%= field.field_type === 'tag' ? 'selected' : '' %>>tag</option>
+                  <option value="boolean" <%= field.field_type === 'boolean' ? 'selected' : '' %>>boolean</option>
+                </select>
+              </td>
+              <td><input data-field-unit value="<%= field.unit || '' %>" <%= isLocked ? 'readonly' : '' %>></td>
+              <td><input data-field-group value="<%= field.group_label || '' %>" <%= isLocked ? 'readonly' : '' %>></td>
+              <td><input type="checkbox" data-field-required <%= field.required ? 'checked' : '' %> <%= isLocked ? 'disabled' : '' %>></td>
+              <td>
+                <button class="icon-button danger" type="button" data-field-delete title="Delete field" <%= isLocked ? 'disabled' : '' %>>
+                  <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                </button>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+      <div style="margin-top:0.75rem;">
+        <button class="pure-button pure-button-secondary" type="button" id="qualAddField">Add field</button>
+      </div>
+      <div class="card" style="margin-top: 1rem;">
+        <h3 class="card-title">Custom Field</h3>
+        <form class="pure-form pure-form-stacked" id="qualCustomFieldForm">
+          <div class="field-grid">
+            <div>
+              <label>Code</label>
+              <input type="text" name="code" placeholder="custom_param" required>
+            </div>
+            <div>
+              <label>Label</label>
+              <input type="text" name="label" placeholder="Custom Parameter" required>
+            </div>
+            <div>
+              <label>Unit</label>
+              <input type="text" name="unit" placeholder="">
+            </div>
+            <div>
+              <label>Group</label>
+              <input type="text" name="group_label" placeholder="Inputs">
+            </div>
+            <div>
+              <label>Type</label>
+              <select name="field_type">
+                <option value="number" selected>Number</option>
+                <option value="text">Text</option>
+                <option value="tag">Tag</option>
+                <option value="boolean">Boolean</option>
+              </select>
+            </div>
+            <div>
+              <label>Allowed Tags (comma-separated)</label>
+              <input type="text" name="allowed_values" placeholder="good, ok, fail">
+            </div>
+          </div>
+          <button class="pure-button pure-button-primary" type="submit">Add Field</button>
+        </form>
+      </div>
+    <% } %>
+  </div>
+</dialog>
+
+<dialog class="modal-frame" id="rheoSetupDialog">
+  <div class="modal-header">
+    <strong>Rheology setup</strong>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+  <div class="modal-body">
+    <div class="grid-two">
+      <div>
+        <label>Intensification coefficient <span class="small-note"><%= unitByCode.intensification_coeff || '' %></span></label>
+        <input type="number" step="any" id="rheoIntCoeff" value="<%= settings.intensification_coeff ?? 1 %>">
+      </div>
+      <div>
+        <label>Melt temperature <span class="small-note"><%= unitByCode.melt_temp || '' %></span></label>
+        <input type="number" step="any" id="rheoMeltTemp" value="<%= settings.melt_temp_c ?? '' %>">
+      </div>
+    </div>
+    <div class="field-toolbar">
+      <label>
+        Add from library
+        <select id="rheoLibrarySelect">
+          <option value="">Select parameter…</option>
+          <% globalParams.forEach((param) => { %>
+            <option value="<%= param.id %>" data-code="<%= param.code %>" data-label="<%- formatInline(param.label) %>" data-unit="<%= param.unit || '' %>"><%- formatInline(param.label) %> (<%= param.code %>)</option>
+          <% }); %>
+        </select>
+      </label>
+      <button class="pure-button" type="button" id="rheoAddFromLibrary">Add field</button>
+      <button class="pure-button pure-button-secondary" type="button" id="rheoAddCustom">Add custom</button>
+      <a class="pure-button pure-button-secondary" href="/param-library">Open library</a>
+    </div>
+    <div class="setup-field-list" id="rheoCustomFields">
+      <% (settings.custom_fields || []).forEach((field) => { %>
+        <div class="setup-field-row" data-custom-field data-field-id="<%= field.id %>">
+          <input type="text" data-custom-label value="<%- formatInline(field.label) %>" placeholder="Label">
+          <input type="text" data-custom-unit value="<%- formatInline(field.unit || '') %>" placeholder="Unit">
+          <input type="number" step="any" data-custom-value value="<%= field.value ?? '' %>" placeholder="Value">
+          <button class="icon-button danger" type="button" data-remove-field title="Remove">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+          <input type="hidden" data-custom-code value="<%- formatInline(field.code || '') %>">
+        </div>
+      <% }); %>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <span class="save-status" id="rheoSetupStatus">Saved</span>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+</dialog>
+
+<script src="/vendor/echarts/dist/echarts.min.js"></script>
+<script>
+  const dialog = document.getElementById('qualFieldDialog');
+  const rheoSetupDialog = document.getElementById('rheoSetupDialog');
+  const openBtn = document.getElementById('openQualFields');
+  const showDialog = (dlg) => {
+    if (!dlg) return;
+    if (typeof dlg.showModal === 'function') {
+      dlg.showModal();
+    } else {
+      dlg.setAttribute('open', '');
+    }
+  };
+  const parseRange = (value) => {
+    if (value == null) return { min: null, max: null };
+    const text = String(value).trim();
+    if (!text) return { min: null, max: null };
+    const parseNum = (val) => {
+      if (val == null) return NaN;
+      const raw = String(val).trim();
+      if (!raw) return NaN;
+      return parseFloat(raw.replace(',', '.'));
+    };
+    const parts = text.split(',').map((part) => parseNum(part));
+    const min = Number.isFinite(parts[0]) ? parts[0] : null;
+    const max = Number.isFinite(parts[1]) ? parts[1] : null;
+    return { min, max };
+  };
+  if (openBtn && dialog) {
+    openBtn.addEventListener('click', () => showDialog(dialog));
+  }
+  dialog?.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => dialog.close());
+  });
+  rheoSetupDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => rheoSetupDialog.close());
+  });
+
+  const fieldBody = document.getElementById('qualFieldBody');
+  const addFieldBtn = document.getElementById('qualAddField');
+  const importBtn = document.getElementById('qualImportField');
+  const librarySelect = document.getElementById('qualLibrarySelect');
+  const customForm = document.getElementById('qualCustomFieldForm');
+  const stepNumber = <%= step.step_number %>;
+  let addCavityFieldColumn = null;
+  let saveTimer = null;
+
+  const addRheoFieldColumn = (field) => {
+    if (<%= step.step_number %> !== 1) return;
+    if (!field?.id) return;
+    if (document.querySelector(`th[data-extra-field][data-field-id="${field.id}"]`)) return;
+    const headerRow = document.querySelector('.rheo-table thead tr');
+    const derivedHeader = headerRow?.querySelector('[data-rheo-derived]');
+    if (!headerRow || !derivedHeader) return;
+    const th = document.createElement('th');
+    th.dataset.extraField = '1';
+    th.dataset.fieldId = String(field.id);
+    th.dataset.fieldType = field.field_type || 'number';
+    th.textContent = field.label || field.code || 'Field';
+    if (field.unit) {
+      const unitEl = document.createElement('span');
+      unitEl.className = 'small-note';
+      unitEl.textContent = ` ${field.unit}`;
+      th.appendChild(unitEl);
+    }
+    headerRow.insertBefore(th, derivedHeader);
+
+    document.querySelectorAll('.rheo-table tbody tr[data-run-row]').forEach((row) => {
+      const derivedCell = row.querySelector('[data-derived="shear_rate_proxy"]')?.closest('td');
+      const td = document.createElement('td');
+      if (field.field_type === 'boolean') {
+        td.innerHTML = `<input type="checkbox" data-field-id="${field.id}" data-field-type="boolean">`;
+      } else if (field.field_type === 'text') {
+        td.innerHTML = `<input type="text" data-field-id="${field.id}" data-field-type="text" value="">`;
+      } else {
+        td.innerHTML = `<input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value="">`;
+      }
+      if (derivedCell) {
+        row.insertBefore(td, derivedCell);
+      } else {
+        row.appendChild(td);
+      }
+    });
+  };
+
+  const removeRheoFieldColumn = (fieldId) => {
+    if (<%= step.step_number %> !== 1) return;
+    document
+      .querySelectorAll(`th[data-extra-field][data-field-id="${fieldId}"]`)
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll(`.rheo-table tbody input[data-field-id="${fieldId}"]`)
+      .forEach((input) => input.closest('td')?.remove());
+  };
+
+  const addCpwFieldColumn = (field) => {
+    if (<%= step.step_number %> !== 4) return;
+    if (!field?.id) return;
+    if (document.querySelector(`th[data-extra-field][data-field-id="${field.id}"]`)) return;
+    const headerRow = document.querySelector('.table-scroll thead tr');
+    const actionHeader = headerRow?.querySelector('th:last-child');
+    if (!headerRow || !actionHeader) return;
+    const th = document.createElement('th');
+    th.dataset.extraField = '1';
+    th.dataset.fieldId = String(field.id);
+    th.dataset.fieldType = field.field_type || 'number';
+    th.textContent = field.label || field.code || 'Field';
+    if (field.unit) {
+      const unitEl = document.createElement('span');
+      unitEl.className = 'small-note';
+      unitEl.textContent = ` ${field.unit}`;
+      th.appendChild(unitEl);
+    }
+    headerRow.insertBefore(th, actionHeader);
+
+    document.querySelectorAll('tbody tr[data-run-row]').forEach((row) => {
+      const td = document.createElement('td');
+      if (field.field_type === 'boolean') {
+        td.innerHTML = `<input type="checkbox" data-field-id="${field.id}" data-field-type="boolean">`;
+      } else if (field.field_type === 'text') {
+        td.innerHTML = `<input type="text" data-field-id="${field.id}" data-field-type="text" value="">`;
+      } else {
+        td.innerHTML = `<input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value="">`;
+      }
+      const actionCell = row.querySelector('[data-run-delete]')?.closest('td');
+      if (actionCell) {
+        row.insertBefore(td, actionCell);
+      } else {
+        row.appendChild(td);
+      }
+    });
+  };
+
+  const removeCpwFieldColumn = (fieldId) => {
+    if (<%= step.step_number %> !== 4) return;
+    document
+      .querySelectorAll(`th[data-extra-field][data-field-id="${fieldId}"]`)
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll(`tbody tr[data-run-row] input[data-field-id="${fieldId}"]`)
+      .forEach((input) => input.closest('td')?.remove());
+  };
+
+  const scheduleSave = (row) => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      const fieldId = row.dataset.fieldId;
+      const payload = new URLSearchParams();
+      payload.append('code', row.querySelector('[data-field-code]').value);
+      payload.append('label', row.querySelector('[data-field-label]').value);
+      payload.append('field_type', row.querySelector('[data-field-type]').value);
+      payload.append('unit', row.querySelector('[data-field-unit]').value);
+      payload.append('group_label', row.querySelector('[data-field-group]').value);
+      payload.append('required', row.querySelector('[data-field-required]').checked ? '1' : '');
+      payload.append('is_enabled', row.querySelector('[data-field-enabled]').checked ? '1' : '');
+      await fetch(`/experiments/<%= experimentId %>/qualification/fields/${fieldId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+    }, 400);
+  };
+
+  fieldBody?.addEventListener('input', (event) => {
+    const row = event.target.closest('tr[data-field-id]');
+    if (row) scheduleSave(row);
+  });
+
+  if (<%= step.step_number %> === 2) {
+    let cavityTimer = null;
+    fieldBody?.addEventListener('input', (event) => {
+      const row = event.target.closest('tr[data-cavity-field]');
+      if (!row) return;
+      const suffix = row.dataset.suffix;
+      if (!suffix) return;
+      if (cavityTimer) clearTimeout(cavityTimer);
+      cavityTimer = setTimeout(async () => {
+        const payload = new URLSearchParams();
+        payload.append('label', row.querySelector('[data-field-label]')?.value || '');
+        payload.append('unit', row.querySelector('[data-field-unit]')?.value || '');
+        payload.append('field_type', row.querySelector('[data-field-type]')?.value || 'number');
+        await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/cavity-fields/${suffix}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+        const header = document.querySelector(`th[data-cavity-custom][data-suffix="${suffix}"]`);
+        const nextType = row.querySelector('[data-field-type]')?.value || 'number';
+        if (header) {
+          header.textContent = row.querySelector('[data-field-label]')?.value || suffix;
+          const unit = row.querySelector('[data-field-unit]')?.value;
+          if (unit) {
+            const unitEl = document.createElement('span');
+            unitEl.className = 'small-note';
+            unitEl.textContent = ` ${unit}`;
+            header.appendChild(unitEl);
+          }
+          header.dataset.type = nextType;
+        }
+        document.querySelectorAll(`td[data-cavity-suffix="${suffix}"]`).forEach((cell) => {
+          const input = cell.querySelector('input');
+          if (!input) return;
+          if (nextType === 'boolean') {
+            if (input.type !== 'checkbox') {
+              const next = document.createElement('input');
+              next.type = 'checkbox';
+              next.dataset.fieldId = input.dataset.fieldId || '';
+              next.dataset.fieldType = 'boolean';
+              cell.innerHTML = '';
+              cell.appendChild(next);
+            }
+            return;
+          }
+          if (nextType === 'text') {
+            if (input.type !== 'text') {
+              const next = document.createElement('input');
+              next.type = 'text';
+              next.dataset.fieldId = input.dataset.fieldId || '';
+              next.dataset.fieldType = 'text';
+              cell.innerHTML = '';
+              cell.appendChild(next);
+            }
+            return;
+          }
+          if (input.type !== 'number') {
+            const next = document.createElement('input');
+            next.type = 'number';
+            next.step = 'any';
+            next.dataset.fieldId = input.dataset.fieldId || '';
+            next.dataset.fieldType = 'number';
+            cell.innerHTML = '';
+            cell.appendChild(next);
+          }
+        });
+      }, 400);
+    });
+
+    fieldBody?.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-cavity-field-delete]');
+      if (!btn) return;
+      const row = btn.closest('tr[data-cavity-field]');
+      const suffix = row?.dataset.suffix;
+      if (!suffix) return;
+      fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/cavity-fields/${suffix}/delete`, {
+        method: 'POST'
+      }).then(() => {
+        row?.remove();
+        document.querySelector(`th[data-cavity-custom][data-suffix="${suffix}"]`)?.remove();
+        document.querySelectorAll(`td[data-cavity-suffix="${suffix}"]`).forEach((cell) => cell.remove());
+      });
+    });
+  }
+
+  const appendFieldRow = (data) => {
+    const row = document.createElement('tr');
+    row.dataset.fieldId = data.id;
+    row.innerHTML = `
+      <td><input type="checkbox" data-field-enabled ${data.is_enabled ? 'checked' : ''}></td>
+      <td><input data-field-code value="${data.code}"></td>
+      <td><input data-field-label value="${data.label}"></td>
+      <td>
+        <select data-field-type>
+          <option value="number" ${data.field_type === 'number' ? 'selected' : ''}>number</option>
+          <option value="text" ${data.field_type === 'text' ? 'selected' : ''}>text</option>
+          <option value="tag" ${data.field_type === 'tag' ? 'selected' : ''}>tag</option>
+          <option value="boolean" ${data.field_type === 'boolean' ? 'selected' : ''}>boolean</option>
+        </select>
+      </td>
+      <td><input data-field-unit value="${data.unit || ''}"></td>
+      <td><input data-field-group value="${data.group_label || ''}"></td>
+      <td><input type="checkbox" data-field-required ${data.required ? 'checked' : ''}></td>
+      <td>
+        <button class="icon-button danger" type="button" data-field-delete title="Delete field">
+          <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+        </button>
+      </td>
+    `;
+    fieldBody.appendChild(row);
+  };
+
+  addFieldBtn?.addEventListener('click', async () => {
+    if (<%= step.step_number %> === 2) return;
+    const payload = new URLSearchParams();
+    payload.append('code', `custom_${Date.now()}`);
+    payload.append('label', 'New field');
+    payload.append('field_type', 'number');
+    const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/fields`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: payload
+    });
+    const data = await resp.json();
+    appendFieldRow({
+      id: data.id,
+      code: payload.get('code'),
+      label: 'New field',
+      field_type: 'number',
+      unit: '',
+      group_label: '',
+      required: 0,
+      is_enabled: 1
+    });
+    if (<%= step.step_number %> === 1) {
+      addRheoFieldColumn({
+        id: data.id,
+        code: payload.get('code'),
+        label: 'New field',
+        field_type: 'number',
+        unit: ''
+      });
+    }
+  });
+
+  if (<%= step.step_number %> === 1) {
+    document.getElementById('openRheoSetup')?.addEventListener('click', () => rheoSetupDialog?.showModal());
+    const intCoeffInput = document.getElementById('rheoIntCoeff');
+    const meltTempInput = document.getElementById('rheoMeltTemp');
+    const customList = document.getElementById('rheoCustomFields');
+    const addCustomBtn = document.getElementById('rheoAddCustom');
+    const addFromLibraryBtn = document.getElementById('rheoAddFromLibrary');
+    const librarySelect = document.getElementById('rheoLibrarySelect');
+    const setupStatus = document.getElementById('rheoSetupStatus');
+    const xAxisSelect = document.getElementById('rheoXAxis');
+    const recommendedInput = document.getElementById('rheoRecommended');
+    const addRowBtn = document.getElementById('rheoAddRow');
+    const fieldIdsEl = document.getElementById('rheoFieldIds');
+    const injFieldId = fieldIdsEl?.dataset.inj ? Number(fieldIdsEl.dataset.inj) : null;
+    const pressFieldId = fieldIdsEl?.dataset.press ? Number(fieldIdsEl.dataset.press) : null;
+    const fillFieldId = fieldIdsEl?.dataset.fill ? Number(fieldIdsEl.dataset.fill) : null;
+    let settingsTimer = null;
+
+    const parseNum = (value) => {
+      if (value == null) return NaN;
+      const text = String(value).trim();
+      if (!text) return NaN;
+      return parseFloat(text.replace(',', '.'));
+    };
+
+    const getSettings = () => ({
+      intensification_coeff: parseNum(intCoeffInput?.value) || 1,
+      melt_temp_c: (() => {
+        const val = parseNum(meltTempInput?.value);
+        return Number.isFinite(val) ? val : null;
+      })()
+    });
+
+    let fieldManager = null;
+
+    const markSaving = () => {
+      if (setupStatus) setupStatus.textContent = 'Saving...';
+    };
+
+    const saveSettings = () => {
+      if (settingsTimer) clearTimeout(settingsTimer);
+      markSaving();
+      settingsTimer = setTimeout(async () => {
+        const settings = getSettings();
+        const customFields = fieldManager ? fieldManager.collect() : [];
+        const payload = new URLSearchParams();
+        payload.append('intensification_coeff', settings.intensification_coeff);
+        payload.append('melt_temp_c', settings.melt_temp_c ?? '');
+        payload.append('recommended_inj_speed', recommendedInput?.value ?? '');
+        payload.append('custom_fields_json', JSON.stringify(customFields));
+        await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+        if (setupStatus) setupStatus.textContent = 'Saved';
+        updateDerivedAndChart();
+      }, 400);
+    };
+
+    fieldManager = window.IMPlanner?.createCustomFieldManager({
+      listEl: customList,
+      onChange: () => saveSettings()
+    });
+
+    intCoeffInput?.addEventListener('input', saveSettings);
+    meltTempInput?.addEventListener('input', saveSettings);
+    recommendedInput?.addEventListener('input', saveSettings);
+    addCustomBtn?.addEventListener('click', () => {
+      fieldManager?.addRow();
+    });
+
+    addFromLibraryBtn?.addEventListener('click', () => {
+      const option = librarySelect?.selectedOptions?.[0];
+      if (!option || !option.value) return;
+      fieldManager?.addFromLibrary(option);
+    });
+
+    const makeRunRow = (run) => {
+      const extraFields = Array.from(document.querySelectorAll('[data-extra-field]')).map((el) => ({
+        id: el.dataset.fieldId,
+        type: el.dataset.fieldType
+      }));
+      const row = document.createElement('tr');
+      row.setAttribute('data-run-row', '');
+      row.dataset.runId = run.id;
+      row.innerHTML = `
+        <td><strong>${run.run_code}</strong></td>
+        <td><input type="number" step="any" data-field-id="${injFieldId || ''}" data-field-type="number" value=""></td>
+        <td><input type="number" step="any" data-field-id="${pressFieldId || ''}" data-field-type="number" value=""></td>
+        <td><input type="number" step="any" data-field-id="${fillFieldId || ''}" data-field-type="number" value=""></td>
+        ${extraFields
+          .map((field) => {
+            if (!field.id) return '<td></td>';
+            if (field.type === 'boolean') {
+              return `<td><input type="checkbox" data-field-id="${field.id}" data-field-type="boolean"></td>`;
+            }
+            if (field.type === 'text') {
+              return `<td><input type="text" data-field-id="${field.id}" data-field-type="text" value=""></td>`;
+            }
+            return `<td><input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value=""></td>`;
+          })
+          .join('')}
+        <td data-derived="shear_rate_proxy">-</td>
+        <td data-derived="rel_viscosity">-</td>
+        <td>
+          <button class="icon-button danger" type="button" data-run-delete title="Delete row">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      return row;
+    };
+
+    addRowBtn?.addEventListener('click', async () => {
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs`, {
+        method: 'POST'
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data?.run) return;
+      const tbody = document.querySelector('.rheo-table tbody');
+      const emptyRow = tbody?.querySelector('tr td[colspan]');
+      if (emptyRow) emptyRow.parentElement.remove();
+      tbody?.appendChild(makeRunRow(data.run));
+      updateDerivedAndChart();
+    });
+
+    const updateDerivedAndChart = () => {
+      const settings = getSettings();
+      const rows = document.querySelectorAll('[data-run-row]');
+      rows.forEach((row) => {
+        const pressInput = pressFieldId ? row.querySelector(`[data-field-id="${pressFieldId}"]`) : null;
+        const fillInput = fillFieldId ? row.querySelector(`[data-field-id="${fillFieldId}"]`) : null;
+        const press = parseNum(pressInput?.value);
+        const fill = parseNum(fillInput?.value);
+        const shearRateCell = row.querySelector('[data-derived="shear_rate_proxy"]');
+        const viscCell = row.querySelector('[data-derived="rel_viscosity"]');
+        if (Number.isFinite(fill) && fill !== 0) {
+          const shearRate = 1 / fill;
+          if (shearRateCell) shearRateCell.textContent = shearRate.toFixed(3).replace(/\.?0+$/, '');
+          if (Number.isFinite(press)) {
+            const viscosity = press * fill * settings.intensification_coeff;
+            if (viscCell) viscCell.textContent = viscosity.toFixed(3).replace(/\.?0+$/, '');
+          } else {
+            if (viscCell) viscCell.textContent = '-';
+          }
+        } else {
+          if (shearRateCell) shearRateCell.textContent = '-';
+          if (viscCell) viscCell.textContent = '-';
+        }
+      });
+      renderChart();
+    };
+
+    let recommendedPoint = null;
+    const chart = echarts.init(document.getElementById('rheoChart'));
+    chart.getZr().off('mousewheel');
+    chart.getZr().off('wheel');
+
+    const formatNumberClient = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '-';
+      const abs = Math.abs(num);
+      if (abs >= 1e6) {
+        const exp = Math.floor(Math.log10(abs));
+        const mant = num / Math.pow(10, exp);
+        const mantText = mant.toFixed(2).replace(/\.?0+$/, '');
+        return `${mantText}×10^${exp}`;
+      }
+      if (abs >= 10000) {
+        const k = num / 1000;
+        const kText = k.toFixed(2).replace(/\.?0+$/, '');
+        return `${kText}k`;
+      }
+      const rounded = Math.round(num * 100) / 100;
+      return rounded.toFixed(2).replace(/\.?0+$/, '');
+    };
+
+    const renderChart = () => {
+      const rows = Array.from(document.querySelectorAll('[data-run-row]'));
+      const xMode = xAxisSelect?.value || 'inj_speed';
+      const settings = getSettings();
+      const xName = xMode === 'inj_speed' ? 'Injection speed' : 'Shear rate (1/s)';
+      const data = rows.map((row) => {
+        const injInput = injFieldId ? row.querySelector(`[data-field-id="${injFieldId}"]`) : null;
+        const pressInput = pressFieldId ? row.querySelector(`[data-field-id="${pressFieldId}"]`) : null;
+        const fillInput = fillFieldId ? row.querySelector(`[data-field-id="${fillFieldId}"]`) : null;
+        const inj = parseNum(injInput?.value);
+        const press = parseNum(pressInput?.value);
+        const fill = parseNum(fillInput?.value);
+        let x = inj;
+        if (xMode === 'shear_rate_proxy' && Number.isFinite(fill) && fill !== 0) {
+          x = 1 / fill;
+        }
+        let y = NaN;
+        if (Number.isFinite(press) && Number.isFinite(fill) && fill !== 0) {
+          y = press * fill * settings.intensification_coeff;
+        }
+        return [x, y];
+      }).filter((row) => Number.isFinite(row[0]) && Number.isFinite(row[1]));
+
+      data.sort((a, b) => a[0] - b[0]);
+      const series = [
+        {
+          type: 'line',
+          smooth: false,
+          symbol: 'circle',
+          data
+        }
+      ];
+      if (recommendedPoint) {
+        series.push({
+          type: 'scatter',
+          symbol: 'circle',
+          symbolSize: 10,
+          itemStyle: { color: '#d97a2b' },
+          data: [recommendedPoint]
+        });
+      }
+      chart.setOption({
+        grid: { left: 70, right: 40, top: 28, bottom: 60, containLabel: true },
+        xAxis: {
+          type: 'value',
+          name: xName
+        },
+        yAxis: {
+          type: 'value',
+          name: 'Relative viscosity'
+        },
+        series
+      });
+    };
+
+    document.querySelectorAll('[data-run-row] input[type="number"]').forEach((input) => {
+      input.addEventListener('input', updateDerivedAndChart);
+    });
+
+    xAxisSelect?.addEventListener('change', () => {
+      recommendedPoint = null;
+      renderChart();
+    });
+    updateDerivedAndChart();
+
+    const saveRunValue = async (runId, fieldId, value) => {
+      const payload = new URLSearchParams();
+      payload.append('field_id', fieldId);
+      payload.append('value', value);
+      await fetch(`/qual-runs/${runId}/value`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+    };
+
+
+    const runSaveTimers = new Map();
+    const handleRunInput = (target) => {
+      const row = target.closest('[data-run-row]');
+      const runId = row?.dataset.runId;
+      const fieldIdRaw = target.getAttribute('data-field-id');
+      const fieldId = fieldIdRaw ? Number(fieldIdRaw) : NaN;
+      if (!runId || !Number.isFinite(fieldId)) return;
+      const fieldType = target.dataset.fieldType || (target.type === 'checkbox' ? 'boolean' : 'text');
+      const key = `${runId}:${fieldId}`;
+      if (runSaveTimers.has(key)) clearTimeout(runSaveTimers.get(key));
+      runSaveTimers.set(
+        key,
+        setTimeout(() => {
+          const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
+          saveRunValue(runId, fieldId, value);
+          runSaveTimers.delete(key);
+        }, 300)
+      );
+    };
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('[data-run-row]')) return;
+      handleRunInput(target);
+      if (target.type === 'number') updateDerivedAndChart();
+    });
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('[data-run-row]')) return;
+      handleRunInput(target);
+      if (target.type === 'number') updateDerivedAndChart();
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-run-delete]');
+      if (!target) return;
+      const row = target.closest('[data-run-row]');
+      const runId = row?.dataset.runId;
+      if (!runId) return;
+      fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs/${runId}/delete`, {
+        method: 'POST'
+      }).then(() => {
+        row?.remove();
+        updateDerivedAndChart();
+      });
+    });
+
+    const analyzeBtn = document.getElementById('rheoAnalyze');
+    const findKnee = (points) => {
+      if (points.length < 4) return null;
+      const logPoints = points.map(([x, y]) => [Math.log(x), Math.log(y)]);
+      let best = { idx: -1, error: Number.POSITIVE_INFINITY };
+      const fitLine = (start, end) => {
+        const slice = logPoints.slice(start, end + 1);
+        const n = slice.length;
+        const sumX = slice.reduce((acc, v) => acc + v[0], 0);
+        const sumY = slice.reduce((acc, v) => acc + v[1], 0);
+        const sumXY = slice.reduce((acc, v) => acc + v[0] * v[1], 0);
+        const sumXX = slice.reduce((acc, v) => acc + v[0] * v[0], 0);
+        const denom = n * sumXX - sumX * sumX;
+        const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+        const intercept = (sumY - slope * sumX) / n;
+        const error = slice.reduce((acc, v) => {
+          const pred = slope * v[0] + intercept;
+          return acc + Math.pow(v[1] - pred, 2);
+        }, 0);
+        return { slope, error };
+      };
+      for (let i = 1; i < logPoints.length - 2; i += 1) {
+        const left = fitLine(0, i);
+        const right = fitLine(i + 1, logPoints.length - 1);
+        const error = left.error + right.error;
+        if (error < best.error) {
+          best = { idx: i, error };
+        }
+      }
+      return best.idx >= 0 ? best.idx : null;
+    };
+
+    const movingAverage = (values, windowSize = 3) => {
+      const smoothed = [];
+      for (let i = 0; i < values.length; i += 1) {
+        const start = Math.max(0, i - Math.floor(windowSize / 2));
+        const end = Math.min(values.length - 1, i + Math.floor(windowSize / 2));
+        const slice = values.slice(start, end + 1);
+        const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+        smoothed.push(avg);
+      }
+      return smoothed;
+    };
+
+    const findKneeBySlopeChange = (xs, ys) => {
+      if (xs.length < 4) return null;
+      const slopes = [];
+      for (let i = 0; i < xs.length - 1; i += 1) {
+        const dx = xs[i + 1] - xs[i];
+        slopes.push(dx !== 0 ? (ys[i + 1] - ys[i]) / dx : 0);
+      }
+      let maxChange = -Infinity;
+      let idx = null;
+      for (let i = 0; i < slopes.length - 1; i += 1) {
+        const change = Math.abs(slopes[i + 1] - slopes[i]);
+        if (change > maxChange) {
+          maxChange = change;
+          idx = i + 1;
+        }
+      }
+      return idx;
+    };
+
+    const findFlatStart = (xs, ys, startIdx = 0) => {
+      if (xs.length < 4) return null;
+      const slopes = [];
+      for (let i = 0; i < xs.length - 1; i += 1) {
+        const dx = xs[i + 1] - xs[i];
+        slopes.push(dx !== 0 ? (ys[i + 1] - ys[i]) / dx : 0);
+      }
+      const tailStart = Math.max(startIdx, Math.floor(slopes.length * 0.6));
+      const tail = slopes.slice(tailStart);
+      if (tail.length < 2) return null;
+      const mean = tail.reduce((a, b) => a + b, 0) / tail.length;
+      const variance = tail.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / tail.length;
+      const sigma = Math.sqrt(variance) || 1;
+      const threshold = Math.max(Math.abs(mean) * 0.3, sigma * 0.6);
+      for (let i = tailStart; i < slopes.length - 1; i += 1) {
+        if (Math.abs(slopes[i] - mean) <= threshold && Math.abs(slopes[i + 1] - mean) <= threshold) {
+          return i + 1;
+        }
+      }
+      return null;
+    };
+
+    const interpolate = (xs, ys, targetX) => {
+      if (xs.length === 0) return null;
+      if (targetX <= xs[0]) return ys[0];
+      if (targetX >= xs[xs.length - 1]) return ys[ys.length - 1];
+      for (let i = 0; i < xs.length - 1; i += 1) {
+        if (targetX >= xs[i] && targetX <= xs[i + 1]) {
+          const t = xs[i + 1] !== xs[i] ? (targetX - xs[i]) / (xs[i + 1] - xs[i]) : 0;
+          return ys[i] + (ys[i + 1] - ys[i]) * t;
+        }
+      }
+      return null;
+    };
+
+    analyzeBtn?.addEventListener('click', () => {
+      const rows = Array.from(document.querySelectorAll('[data-run-row]'));
+      const xMode = xAxisSelect?.value || 'inj_speed';
+      const settings = getSettings();
+      const points = rows.map((row) => {
+        const injInput = injFieldId ? row.querySelector(`[data-field-id="${injFieldId}"]`) : null;
+        const pressInput = pressFieldId ? row.querySelector(`[data-field-id="${pressFieldId}"]`) : null;
+        const fillInput = fillFieldId ? row.querySelector(`[data-field-id="${fillFieldId}"]`) : null;
+        const inj = parseNum(injInput?.value);
+        const press = parseNum(pressInput?.value);
+        const fill = parseNum(fillInput?.value);
+        let y = NaN;
+        if (Number.isFinite(press) && Number.isFinite(fill) && fill !== 0) {
+          y = press * fill * settings.intensification_coeff;
+        }
+        const shearRate = Number.isFinite(fill) && fill !== 0 ? 1 / fill : NaN;
+        return [inj, y, shearRate];
+      }).filter((row) => Number.isFinite(row[0]) && Number.isFinite(row[1]));
+
+      console.log('[Rheology] points', points);
+      points.sort((a, b) => a[0] - b[0]);
+      const injs = points.map((row) => row[0]);
+      const ysRaw = points.map((row) => row[1]);
+      const shearRates = points.map((row) => row[2]);
+      const ys = movingAverage(ysRaw, 3);
+      console.log('[Rheology] injs', injs);
+      console.log('[Rheology] ysRaw', ysRaw);
+      console.log('[Rheology] ysSmoothed', ys);
+      const kneeIdx = findKneeBySlopeChange(injs, ys);
+      const flatIdx = findFlatStart(injs, ys, kneeIdx != null ? kneeIdx + 1 : 0);
+      const targetIdx = flatIdx != null ? flatIdx : kneeIdx;
+      if (targetIdx == null) return;
+      const targetInj = injs[targetIdx];
+      const targetY = ys[targetIdx];
+      const targetShear = shearRates[targetIdx];
+      const displayInj = Number.isFinite(targetInj)
+        ? Math.round(targetInj * 1000) / 1000
+        : targetInj;
+      console.log('[Rheology] targetIdx', targetIdx, 'targetInj', targetInj, 'targetY', targetY);
+      const chartX = xMode === 'shear_rate_proxy' ? targetShear : targetInj;
+      if (!Number.isFinite(chartX)) return;
+      recommendedPoint = [chartX, targetY];
+      if (recommendedInput) {
+        recommendedInput.value = String(displayInj);
+        saveSettings();
+      }
+      console.log('[Rheology] displayInj', displayInj, 'formatted', String(displayInj));
+      renderChart();
+    });
+  } else if (<%= step.step_number %> === 2) {
+    const cavitySetupDialog = document.getElementById('cavitySetupDialog');
+    const openCavitySetup = document.getElementById('openCavitySetup');
+    const cavityInjSpeedInput = document.getElementById('cavityInjSpeed');
+    const cavityTargetWeightInput = document.getElementById('cavityTargetWeight');
+    const cavitySetupStatus = document.getElementById('cavitySetupStatus');
+    let cavityRunId = document.getElementById('cavityRunId')?.value;
+    const injSpeedValueEl = document.getElementById('cavityInjSpeedValue');
+    const targetWeightValueEl = document.getElementById('cavityTargetWeightValue');
+    const addCavityBtn = document.getElementById('addCavityBtn');
+    const cavityTableBody = document.querySelector('.table-scroll tbody');
+
+    openCavitySetup?.addEventListener('click', () => cavitySetupDialog?.showModal());
+    cavitySetupDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+      btn.addEventListener('click', () => cavitySetupDialog.close());
+    });
+
+    const parseNum = (value) => {
+      if (value == null) return NaN;
+      const text = String(value).trim();
+      if (!text) return NaN;
+      return parseFloat(text.replace(',', '.'));
+    };
+
+    const formatNumberClient = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '-';
+      const abs = Math.abs(num);
+      if (abs >= 1e6) {
+        const exp = Math.floor(Math.log10(abs));
+        const mant = num / Math.pow(10, exp);
+        const mantText = mant.toFixed(2).replace(/\.?0+$/, '');
+        return `${mantText}×10^${exp}`;
+      }
+      if (abs >= 10000) {
+        const k = num / 1000;
+        const kText = k.toFixed(2).replace(/\.?0+$/, '');
+        return `${kText}k`;
+      }
+      const rounded = Math.round(num * 100) / 100;
+      return rounded.toFixed(2).replace(/\.?0+$/, '');
+    };
+
+    let setupTimer = null;
+    const saveCavitySettings = () => {
+      if (setupTimer) clearTimeout(setupTimer);
+      if (cavitySetupStatus) cavitySetupStatus.textContent = 'Saving...';
+      setupTimer = setTimeout(async () => {
+        const payload = new URLSearchParams();
+        payload.append('inj_speed', cavityInjSpeedInput?.value ?? '');
+        payload.append('target_weight_g', cavityTargetWeightInput?.value ?? '');
+        await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+        if (injSpeedValueEl) {
+          injSpeedValueEl.textContent = cavityInjSpeedInput?.value?.trim() || '-';
+        }
+        if (targetWeightValueEl) {
+          targetWeightValueEl.textContent = cavityTargetWeightInput?.value?.trim() || '-';
+        }
+        if (cavitySetupStatus) cavitySetupStatus.textContent = 'Saved';
+        updateCavityDerived();
+      }, 350);
+    };
+
+    cavityInjSpeedInput?.addEventListener('input', saveCavitySettings);
+    cavityTargetWeightInput?.addEventListener('input', saveCavitySettings);
+
+    const variationValueEl = document.getElementById('cavityVariationValue');
+
+    const updateCavityDerived = () => {
+      const numberInputs = Array.from(document.querySelectorAll('tr[data-cavity-row] input[data-cavity-weight]'));
+      const weights = numberInputs
+        .map((el) => parseNum(el.value))
+        .filter((val) => Number.isFinite(val));
+      if (weights.length === 0) {
+        if (variationValueEl) variationValueEl.textContent = '-';
+        return;
+      }
+      const targetWeight = parseNum(cavityTargetWeightInput?.value);
+      const useTarget = Number.isFinite(targetWeight) && weights.length < 3;
+      const base = useTarget
+        ? targetWeight
+        : weights.reduce((acc, val) => acc + val, 0) / weights.length;
+      if (!Number.isFinite(base) || base === 0) {
+        if (variationValueEl) variationValueEl.textContent = '-';
+        return;
+      }
+      let maxVar = 0;
+      numberInputs.forEach((input) => {
+        const val = parseNum(input.value);
+        if (!Number.isFinite(val)) return;
+        const pct = Math.abs((base - val) / base) * 100;
+        if (pct > maxVar) maxVar = pct;
+      });
+      if (variationValueEl) variationValueEl.textContent = `${formatNumberClient(maxVar)}`;
+
+      document.querySelectorAll('tr[data-cavity-row]').forEach((row) => {
+        const input = row.querySelector('input[data-cavity-weight]');
+        const fillEl = row.querySelector('[data-cavity-fill]');
+        if (!fillEl) return;
+        const weight = parseNum(input?.value);
+        if (Number.isFinite(targetWeight) && targetWeight !== 0 && Number.isFinite(weight)) {
+          const fillPct = (weight / targetWeight) * 100;
+          fillEl.textContent = `${formatNumberClient(fillPct)} %`;
+        } else {
+          fillEl.textContent = '-';
+        }
+      });
+    };
+
+    const runSaveTimers = new Map();
+    const ensureCavityRun = async () => {
+      if (cavityRunId) return cavityRunId;
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs`, {
+        method: 'POST'
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const run = data?.run;
+      if (run?.id) {
+        cavityRunId = String(run.id);
+        const runIdInput = document.getElementById('cavityRunId');
+        if (runIdInput) runIdInput.value = cavityRunId;
+      }
+      return cavityRunId;
+    };
+
+    const saveRunValue = async (runId, fieldId, value, asJson = false) => {
+      const payload = asJson
+        ? JSON.stringify({ field_id: fieldId, value })
+        : new URLSearchParams({ field_id: fieldId, value });
+      const resp = await fetch(`/qual-runs/${runId}/value`, {
+        method: 'POST',
+        headers: { 'Content-Type': asJson ? 'application/json' : 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+      return resp.ok;
+    };
+
+    const handleFieldInput = async (target) => {
+      if (!cavityRunId) {
+        const runId = await ensureCavityRun();
+        if (!runId) return;
+      }
+      const fieldIdRaw = target.getAttribute('data-field-id');
+      const fieldId = fieldIdRaw ? Number(fieldIdRaw) : NaN;
+      if (!Number.isFinite(fieldId) || fieldId <= 0) return;
+      const fieldType = target.dataset.fieldType || (target.type === 'checkbox' ? 'boolean' : 'text');
+      const key = `${cavityRunId}:${fieldId}`;
+      if (runSaveTimers.has(key)) clearTimeout(runSaveTimers.get(key));
+      runSaveTimers.set(
+        key,
+        setTimeout(() => {
+          const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
+          saveRunValue(cavityRunId, fieldId, value);
+          runSaveTimers.delete(key);
+        }, 300)
+      );
+    };
+
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.dataset.tagValue) return;
+      if (target.getAttribute('data-field-id')) {
+        handleFieldInput(target);
+        if (target.type === 'number') updateCavityDerived();
+      }
+    });
+
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.dataset.tagValue) return;
+      if (target.getAttribute('data-field-id')) {
+        handleFieldInput(target);
+        if (target.type === 'number') updateCavityDerived();
+      }
+    });
+
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.type === 'checkbox' && target.dataset.tagValue) {
+        if (!cavityRunId) {
+          ensureCavityRun();
+        }
+        const fieldIdRaw = target.getAttribute('data-field-id');
+        const fieldId = fieldIdRaw ? Number(fieldIdRaw) : NaN;
+        if (!Number.isFinite(fieldId)) return;
+        const values = [];
+        document.querySelectorAll(`input[type="checkbox"][data-field-id="${fieldId}"]`).forEach((tagEl) => {
+          if (tagEl.checked) values.push(tagEl.dataset.tagValue);
+        });
+        if (cavityRunId) {
+          saveRunValue(cavityRunId, fieldId, values, true);
+        }
+      }
+    });
+
+    const buildCavityRow = ({ index, weightFieldId, defectFieldId, tags, customFields }) => {
+      const customBySuffix = new Map((customFields || []).map((field) => [field.suffix, field]));
+      const customColumns = Array.from(document.querySelectorAll('th[data-cavity-custom]'));
+      const row = document.createElement('tr');
+      row.dataset.cavityRow = '1';
+      row.dataset.cavityIndex = String(index);
+      const customCells = customColumns
+        .map((col) => {
+          const suffix = col.dataset.suffix;
+          const type = col.dataset.type || 'number';
+          const field = customBySuffix.get(suffix);
+          const fieldId = field ? field.id : '';
+          if (type === 'boolean') {
+            return `<td data-cavity-suffix="${suffix}"><input type="checkbox" data-field-id="${fieldId}" data-field-type="boolean"></td>`;
+          }
+          if (type === 'text') {
+            return `<td data-cavity-suffix="${suffix}"><input type="text" data-field-id="${fieldId}" data-field-type="text" value=""></td>`;
+          }
+          return `<td data-cavity-suffix="${suffix}"><input type="number" step="any" data-field-id="${fieldId}" data-field-type="number" value=""></td>`;
+        })
+        .join('');
+      row.innerHTML = `
+        <td>Cavity ${index}</td>
+        <td><input type="number" step="any" data-field-id="${weightFieldId || ''}" data-field-type="number" data-cavity-weight value=""></td>
+        <td><span class="small-note" data-cavity-fill>-</span></td>
+        ${customCells}
+        <td>
+          <div class="tag-grid">
+            ${(tags || [])
+              .map(
+                (tag) => `
+                <label class="tag-toggle">
+                  <input type="checkbox" data-field-id="${defectFieldId || ''}" data-tag-value="${tag}">
+                  <span class="tag-chip">${tag}</span>
+                </label>
+              `
+              )
+              .join('')}
+          </div>
+        </td>
+        <td>
+          <button class="icon-button danger" type="button" data-cavity-delete title="Delete cavity">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      return row;
+    };
+
+    addCavityBtn?.addEventListener('click', async () => {
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/cavities`, {
+        method: 'POST'
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data?.index) return;
+      const row = buildCavityRow(data);
+      cavityTableBody?.appendChild(row);
+      updateCavityDerived();
+    });
+
+    addCavityFieldColumn = (def) => {
+      if (document.querySelector(`th[data-cavity-custom][data-suffix="${def.suffix}"]`)) {
+        return;
+      }
+      const headerRow = document.querySelector('.table-scroll thead tr');
+      const defectsTh = headerRow?.querySelector('[data-cavity-defects]');
+      if (!headerRow || !defectsTh) return;
+      const th = document.createElement('th');
+      th.dataset.cavityCustom = '1';
+      th.dataset.suffix = def.suffix;
+      th.dataset.type = def.field_type;
+      th.dataset.unit = def.unit || '';
+      th.textContent = def.label || def.suffix;
+      if (def.unit) {
+        const unitEl = document.createElement('span');
+        unitEl.className = 'small-note';
+        unitEl.textContent = ` ${def.unit}`;
+        th.appendChild(unitEl);
+      }
+      headerRow.insertBefore(th, defectsTh);
+
+      const fieldMap = new Map((def.fields || []).map((field) => [String(field.index), field.id]));
+      document.querySelectorAll('tr[data-cavity-row]').forEach((row) => {
+        const index = row.dataset.cavityIndex;
+        const fieldId = fieldMap.get(index) || '';
+        const td = document.createElement('td');
+        if (def.field_type === 'boolean') {
+          td.innerHTML = `<input type="checkbox" data-field-id="${fieldId}" data-field-type="boolean">`;
+        } else if (def.field_type === 'text') {
+          td.innerHTML = `<input type="text" data-field-id="${fieldId}" data-field-type="text" value="">`;
+        } else {
+          td.innerHTML = `<input type="number" step="any" data-field-id="${fieldId}" data-field-type="number" value="">`;
+        }
+        const defectsCell = row.querySelector('td .tag-grid')?.closest('td');
+        if (defectsCell) {
+          row.insertBefore(td, defectsCell);
+        } else {
+          row.appendChild(td);
+        }
+      });
+    };
+
+    // cavity fields are managed through the shared Manage Fields dialog
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-cavity-delete]');
+      if (!target) return;
+      const row = target.closest('tr[data-cavity-row]');
+      const index = row?.dataset.cavityIndex;
+      if (!index) return;
+      fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/cavities/${index}/delete`, {
+        method: 'POST'
+      }).then(() => {
+        row?.remove();
+        updateCavityDerived();
+      });
+    });
+
+    updateCavityDerived();
+  } else if (<%= step.step_number %> === 3) {
+    const pressureSetupDialog = document.getElementById('pressureSetupDialog');
+    const openPressureSetup = document.getElementById('openPressureSetup');
+    const pressureInjSpeedInput = document.getElementById('pressureInjSpeed');
+    const pressureMachineMaxInput = document.getElementById('pressureMachineMax');
+    const pressureIntCoeffInput = document.getElementById('pressureIntCoeff');
+    const pressureSetupStatus = document.getElementById('pressureSetupStatus');
+    const pressureInjSpeedValue = document.getElementById('pressureInjSpeedValue');
+    const pressureMaxValue = document.getElementById('pressureMaxValue');
+    const pressureIntValue = document.getElementById('pressureIntValue');
+    const addPressurePoint = document.getElementById('addPressurePoint');
+    const pressureBody = document.getElementById('pressurePointBody');
+    let pressureRunId = document.getElementById('pressureRunId')?.value;
+
+    openPressureSetup?.addEventListener('click', () => pressureSetupDialog?.showModal());
+    pressureSetupDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+      btn.addEventListener('click', () => pressureSetupDialog.close());
+    });
+
+    const parseNum = (value) => {
+      if (value == null) return NaN;
+      const text = String(value).trim();
+      if (!text) return NaN;
+      return parseFloat(text.replace(',', '.'));
+    };
+
+    const formatNumberClient = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '-';
+      const rounded = Math.round(num * 100) / 100;
+      return rounded.toFixed(2).replace(/\.?0+$/, '');
+    };
+
+    let setupTimer = null;
+    const savePressureSettings = () => {
+      if (setupTimer) clearTimeout(setupTimer);
+      if (pressureSetupStatus) pressureSetupStatus.textContent = 'Saving...';
+      setupTimer = setTimeout(async () => {
+        const payload = new URLSearchParams();
+        payload.append('inj_speed', pressureInjSpeedInput?.value ?? '');
+        payload.append('machine_max_pressure_bar', pressureMachineMaxInput?.value ?? '');
+        payload.append('intensification_coeff', pressureIntCoeffInput?.value ?? '');
+        await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+        if (pressureInjSpeedValue) pressureInjSpeedValue.textContent = pressureInjSpeedInput?.value?.trim() || '-';
+        if (pressureMaxValue) pressureMaxValue.textContent = pressureMachineMaxInput?.value?.trim() || '-';
+        if (pressureIntValue) pressureIntValue.textContent = pressureIntCoeffInput?.value?.trim() || '1';
+        if (pressureSetupStatus) pressureSetupStatus.textContent = 'Saved';
+        updatePressureChart();
+      }, 350);
+    };
+
+    pressureInjSpeedInput?.addEventListener('input', savePressureSettings);
+    pressureMachineMaxInput?.addEventListener('input', savePressureSettings);
+    pressureIntCoeffInput?.addEventListener('input', savePressureSettings);
+
+    const ensurePressureRun = async () => {
+      if (pressureRunId) return pressureRunId;
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs`, {
+        method: 'POST'
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const run = data?.run;
+      if (run?.id) {
+        pressureRunId = String(run.id);
+        const runIdInput = document.getElementById('pressureRunId');
+        if (runIdInput) runIdInput.value = pressureRunId;
+      }
+      return pressureRunId;
+    };
+
+    const saveRunValue = async (runId, fieldId, value) => {
+      const payload = new URLSearchParams({ field_id: fieldId, value });
+      await fetch(`/qual-runs/${runId}/value`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+    };
+
+    const runSaveTimers = new Map();
+    const handlePressureInput = async (target) => {
+      if (!pressureRunId) {
+        const runId = await ensurePressureRun();
+        if (!runId) return;
+      }
+      const fieldIdRaw = target.getAttribute('data-field-id');
+      const fieldId = fieldIdRaw ? Number(fieldIdRaw) : NaN;
+      if (!Number.isFinite(fieldId) || fieldId <= 0) return;
+      if (target.type === 'checkbox') {
+        target.value = target.checked ? '1' : '';
+      }
+      const key = `${pressureRunId}:${fieldId}`;
+      if (runSaveTimers.has(key)) clearTimeout(runSaveTimers.get(key));
+      runSaveTimers.set(
+        key,
+        setTimeout(() => {
+          saveRunValue(pressureRunId, fieldId, target.value);
+          runSaveTimers.delete(key);
+        }, 300)
+      );
+    };
+
+    const chart = echarts.init(document.getElementById('pressureChart'));
+    chart.getZr().off('mousewheel');
+    chart.getZr().off('wheel');
+
+    const updatePressureChart = () => {
+      const coeff = parseNum(pressureIntCoeffInput?.value) || 1;
+      const maxPressure = parseNum(pressureMachineMaxInput?.value);
+      const labels = [];
+      const values = [];
+      document.querySelectorAll('tr[data-pressure-row]').forEach((row) => {
+        const label = row.dataset.label || 'Point';
+        const input = row.querySelector('input[data-pressure-base]');
+        const press = parseNum(input?.value);
+        const peak = Number.isFinite(press) ? press * coeff : NaN;
+        const peakCell = row.querySelector('[data-peak-value]');
+        if (peakCell) {
+          peakCell.textContent = Number.isFinite(peak) ? formatNumberClient(peak) : '-';
+        }
+        if (Number.isFinite(peak)) {
+          labels.push(label);
+          values.push(peak);
+        } else {
+          labels.push(label);
+          values.push(null);
+        }
+      });
+      const markLine = Number.isFinite(maxPressure)
+        ? {
+            data: [{ yAxis: maxPressure * 0.9, name: '90% max' }],
+            lineStyle: { color: '#d97a2b', type: 'dashed' },
+            label: { formatter: '90% max' }
+          }
+        : undefined;
+      chart.setOption({
+        grid: { left: 60, right: 40, top: 28, bottom: 60, containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: labels
+        },
+        yAxis: {
+          type: 'value',
+          name: 'Peak pressure (bar)'
+        },
+        series: [
+          {
+            type: 'bar',
+            data: values,
+            itemStyle: { color: '#4a86d4' },
+            markLine
+          }
+        ]
+      });
+    };
+
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('tr[data-pressure-row]')) return;
+      handlePressureInput(target);
+      updatePressureChart();
+    });
+
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('tr[data-pressure-row]')) return;
+      handlePressureInput(target);
+      updatePressureChart();
+    });
+
+    const appendPressureRow = (data) => {
+      const customColumns = Array.from(document.querySelectorAll('th[data-pressure-custom]')).map((col) => ({
+        suffix: col.dataset.suffix,
+        type: col.dataset.type || 'number'
+      }));
+      const customMap = new Map((data.customFields || []).map((field) => [field.suffix, field.id]));
+      const row = document.createElement('tr');
+      row.dataset.pressureRow = '1';
+      row.dataset.fieldId = String(data.id);
+      row.dataset.label = data.label;
+      row.dataset.sectionCode = data.sectionCode || '';
+      row.innerHTML = `
+        <td>${data.label}</td>
+        <td><input type="number" step="any" data-field-id="${data.id}" data-field-type="number" data-pressure-base value=""></td>
+        ${customColumns
+          .map((col) => {
+            const fieldId = customMap.get(col.suffix) || '';
+            if (col.type === 'boolean') {
+              return `<td data-pressure-suffix="${col.suffix}"><input type="checkbox" data-field-id="${fieldId}" data-field-type="boolean"></td>`;
+            }
+            if (col.type === 'text') {
+              return `<td data-pressure-suffix="${col.suffix}"><input type="text" data-field-id="${fieldId}" data-field-type="text" value=""></td>`;
+            }
+            return `<td data-pressure-suffix="${col.suffix}"><input type="number" step="any" data-field-id="${fieldId}" data-field-type="number" value=""></td>`;
+          })
+          .join('')}
+        <td><span class="small-note" data-peak-value>-</span></td>
+        <td>
+          <button class="icon-button danger" type="button" data-pressure-delete title="Delete point">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      pressureBody?.appendChild(row);
+    };
+
+    const createPressurePoint = async (label) => {
+      const payload = new URLSearchParams();
+      payload.append('label', label);
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/pressure-points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+      if (!resp.ok) return null;
+      return resp.json();
+    };
+
+    addPressurePoint?.addEventListener('click', async () => {
+      const label = window.prompt('Section label');
+      if (!label) return;
+      const data = await createPressurePoint(label);
+      if (!data) return;
+      appendPressureRow(data);
+      updatePressureChart();
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-pressure-delete]');
+      if (!target) return;
+      const row = target.closest('tr[data-pressure-row]');
+      const fieldIdRaw = row?.dataset.fieldId || row?.querySelector('input[data-field-id]')?.getAttribute('data-field-id');
+      const fieldId = fieldIdRaw ? Number(fieldIdRaw) : NaN;
+      if (!Number.isFinite(fieldId)) return;
+      fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/pressure-points/${fieldId}/delete`, {
+        method: 'POST'
+      }).then(() => {
+        row?.remove();
+        updatePressureChart();
+      });
+    });
+
+    updatePressureChart();
+  } else if (<%= step.step_number %> === 4) {
+    const cpwSetupDialog = document.getElementById('cpwSetupDialog');
+    const openCpwSetup = document.getElementById('openCpwSetup');
+    const cpwInjSpeedInput = document.getElementById('cpwInjSpeed');
+    const cpwTempRangeInput = document.getElementById('cpwTempRange');
+    const cpwHoldRangeInput = document.getElementById('cpwHoldRange');
+    const cpwGenModeInput = document.getElementById('cpwGenMode');
+    const cpwTempStepInput = document.getElementById('cpwTempStep');
+    const cpwHoldStepInput = document.getElementById('cpwHoldStep');
+    const cpwGenerateRunsBtn = document.getElementById('cpwGenerateRuns');
+    const cpwAddRunBtn = document.getElementById('cpwAddRun');
+    const cpwSetupStatus = document.getElementById('cpwSetupStatus');
+    const cpwInjSpeedValue = document.getElementById('cpwInjSpeedValue');
+    const cpwGoodCount = document.getElementById('cpwGoodCount');
+    const cpwCenterTemp = document.getElementById('cpwCenterTemp');
+    const cpwCenterPressure = document.getElementById('cpwCenterPressure');
+    const fieldIdsEl = document.getElementById('cpwFieldIds');
+    const tempFieldId = fieldIdsEl?.dataset.temp ? Number(fieldIdsEl.dataset.temp) : null;
+    const holdFieldId = fieldIdsEl?.dataset.hold ? Number(fieldIdsEl.dataset.hold) : null;
+    const shortFieldId = fieldIdsEl?.dataset.short ? Number(fieldIdsEl.dataset.short) : null;
+    const flashFieldId = fieldIdsEl?.dataset.flash ? Number(fieldIdsEl.dataset.flash) : null;
+
+    openCpwSetup?.addEventListener('click', () => cpwSetupDialog?.showModal());
+    cpwSetupDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+      btn.addEventListener('click', () => cpwSetupDialog.close());
+    });
+
+    const parseNum = (value) => {
+      if (value == null) return NaN;
+      const text = String(value).trim();
+      if (!text) return NaN;
+      return parseFloat(text.replace(',', '.'));
+    };
+
+    let setupTimer = null;
+    const saveCpwSettings = () => {
+      if (setupTimer) clearTimeout(setupTimer);
+      if (cpwSetupStatus) cpwSetupStatus.textContent = 'Saving...';
+      setupTimer = setTimeout(async () => {
+        const payload = new URLSearchParams();
+        payload.append('inj_speed', cpwInjSpeedInput?.value ?? '');
+        const tempRange = parseRange(cpwTempRangeInput?.value);
+        const holdRange = parseRange(cpwHoldRangeInput?.value);
+        payload.append('cpw_temp_low_c', tempRange.min ?? '');
+        payload.append('cpw_temp_high_c', tempRange.max ?? '');
+        payload.append('cpw_hold_low_bar', holdRange.min ?? '');
+        payload.append('cpw_hold_high_bar', holdRange.max ?? '');
+        payload.append('cpw_gen_mode', cpwGenModeInput?.value ?? '');
+        payload.append('cpw_temp_step_c', cpwTempStepInput?.value ?? '');
+        payload.append('cpw_hold_step_bar', cpwHoldStepInput?.value ?? '');
+        await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+        if (cpwInjSpeedValue) {
+          cpwInjSpeedValue.textContent = cpwInjSpeedInput?.value?.trim() || '-';
+        }
+        if (cpwSetupStatus) cpwSetupStatus.textContent = 'Saved';
+      }, 350);
+    };
+
+    cpwInjSpeedInput?.addEventListener('input', saveCpwSettings);
+    cpwTempRangeInput?.addEventListener('input', saveCpwSettings);
+    cpwHoldRangeInput?.addEventListener('input', saveCpwSettings);
+    cpwGenModeInput?.addEventListener('change', saveCpwSettings);
+    cpwTempStepInput?.addEventListener('input', saveCpwSettings);
+    cpwHoldStepInput?.addEventListener('input', saveCpwSettings);
+
+    const saveRunValue = async (runId, fieldId, value) => {
+      const payload = new URLSearchParams();
+      payload.append('field_id', fieldId);
+      payload.append('value', value);
+      await fetch(`/qual-runs/${runId}/value`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+    };
+
+    const runSaveTimers = new Map();
+    const handleRunInput = (target) => {
+      const row = target.closest('[data-run-row]');
+      const runId = row?.dataset.runId;
+      const fieldIdRaw = target.getAttribute('data-field-id');
+      const fieldId = fieldIdRaw ? Number(fieldIdRaw) : NaN;
+      if (!runId || !Number.isFinite(fieldId)) return;
+      const fieldType = target.dataset.fieldType || (target.type === 'checkbox' ? 'boolean' : 'text');
+      const key = `${runId}:${fieldId}`;
+      if (runSaveTimers.has(key)) clearTimeout(runSaveTimers.get(key));
+      runSaveTimers.set(
+        key,
+        setTimeout(() => {
+          const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
+          saveRunValue(runId, fieldId, value);
+          runSaveTimers.delete(key);
+        }, 300)
+      );
+    };
+
+    const chart = echarts.init(document.getElementById('cpwChart'));
+    chart.getZr().off('mousewheel');
+    chart.getZr().off('wheel');
+
+    const formatNumberClient = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '-';
+      const rounded = Math.round(num * 100) / 100;
+      return rounded.toFixed(2).replace(/\.?0+$/, '');
+    };
+
+    const makeCpwRunRow = (run) => {
+      const extraFields = Array.from(document.querySelectorAll('th[data-extra-field]')).map((el) => ({
+        id: el.dataset.fieldId,
+        type: el.dataset.fieldType
+      }));
+      const row = document.createElement('tr');
+      row.setAttribute('data-run-row', '');
+      row.dataset.runId = run.id;
+      row.innerHTML = `
+        <td><strong>${run.run_code}</strong></td>
+        <td><input type="number" step="any" data-field-id="${tempFieldId || ''}" data-field-type="number" value=""></td>
+        <td><input type="number" step="any" data-field-id="${holdFieldId || ''}" data-field-type="number" value=""></td>
+        <td><input type="checkbox" data-field-id="${shortFieldId || ''}" data-field-type="boolean"></td>
+        <td><input type="checkbox" data-field-id="${flashFieldId || ''}" data-field-type="boolean"></td>
+        ${extraFields
+          .map((field) => {
+            if (!field.id) return '<td></td>';
+            if (field.type === 'boolean') {
+              return `<td><input type="checkbox" data-field-id="${field.id}" data-field-type="boolean"></td>`;
+            }
+            if (field.type === 'text') {
+              return `<td><input type="text" data-field-id="${field.id}" data-field-type="text" value=""></td>`;
+            }
+            return `<td><input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value=""></td>`;
+          })
+          .join('')}
+        <td>
+          <button class="icon-button danger" type="button" data-run-delete title="Delete row">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      return row;
+    };
+
+    const addCpwRun = async () => {
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs`, {
+        method: 'POST'
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data?.run) return;
+      const tbody = document.querySelector('.table-scroll tbody');
+      const emptyRow = tbody?.querySelector('tr td[colspan]');
+      if (emptyRow) emptyRow.parentElement.remove();
+      tbody?.appendChild(makeCpwRunRow(data.run));
+      updateCpwChart();
+    };
+
+    cpwAddRunBtn?.addEventListener('click', addCpwRun);
+
+    const updateCpwChart = () => {
+      const rows = Array.from(document.querySelectorAll('[data-run-row]'));
+      const points = rows.map((row) => {
+        const tempInput = tempFieldId ? row.querySelector(`[data-field-id="${tempFieldId}"]`) : null;
+        const holdInput = holdFieldId ? row.querySelector(`[data-field-id="${holdFieldId}"]`) : null;
+        const shortInput = shortFieldId ? row.querySelector(`[data-field-id="${shortFieldId}"]`) : null;
+        const flashInput = flashFieldId ? row.querySelector(`[data-field-id="${flashFieldId}"]`) : null;
+        const temp = parseNum(tempInput?.value);
+        const hold = parseNum(holdInput?.value);
+        const shortShot = shortInput ? shortInput.checked : false;
+        const flash = flashInput ? flashInput.checked : false;
+        return { temp, hold, shortShot, flash };
+      });
+
+      const goodPoints = points.filter(
+        (p) => Number.isFinite(p.temp) && Number.isFinite(p.hold) && !p.shortShot && !p.flash
+      );
+      if (cpwGoodCount) {
+        cpwGoodCount.textContent = `Good points: ${goodPoints.length} / 4`;
+      }
+
+      let windowPoints = null;
+      let center = null;
+      if (goodPoints.length >= 4) {
+        const temps = goodPoints.map((p) => p.temp);
+        const lowTemp = Math.min(...temps);
+        const highTemp = Math.max(...temps);
+        const lowPoints = goodPoints.filter((p) => p.temp === lowTemp);
+        const highPoints = goodPoints.filter((p) => p.temp === highTemp);
+        if (lowPoints.length >= 2 && highPoints.length >= 2) {
+          const lowPressures = lowPoints.map((p) => p.hold);
+          const highPressures = highPoints.map((p) => p.hold);
+          const lowMin = Math.min(...lowPressures);
+          const lowMax = Math.max(...lowPressures);
+          const highMin = Math.min(...highPressures);
+          const highMax = Math.max(...highPressures);
+          windowPoints = [
+            [lowTemp, lowMin],
+            [lowTemp, lowMax],
+            [highTemp, highMax],
+            [highTemp, highMin],
+            [lowTemp, lowMin]
+          ];
+          center = {
+            temp: (lowTemp + highTemp) / 2,
+            hold: ((lowMin + lowMax) / 2 + (highMin + highMax) / 2) / 2
+          };
+        }
+      }
+
+      if (cpwCenterTemp) cpwCenterTemp.textContent = center ? formatNumberClient(center.temp) : '-';
+      if (cpwCenterPressure) cpwCenterPressure.textContent = center ? formatNumberClient(center.hold) : '-';
+
+      const goodSeries = goodPoints.map((p) => [p.temp, p.hold]);
+      const badSeries = points
+        .filter((p) => Number.isFinite(p.temp) && Number.isFinite(p.hold) && (p.shortShot || p.flash))
+        .map((p) => [p.temp, p.hold]);
+
+      const series = [
+        {
+          type: 'scatter',
+          name: 'Good',
+          data: goodSeries,
+          symbolSize: 8,
+          itemStyle: { color: '#2f8f5b' }
+        },
+        {
+          type: 'scatter',
+          name: 'Defect',
+          data: badSeries,
+          symbolSize: 8,
+          itemStyle: { color: '#d45f5f' }
+        }
+      ];
+
+      if (windowPoints) {
+        series.push({
+          type: 'line',
+          data: windowPoints,
+          lineStyle: { color: '#4a86d4', width: 2 },
+          symbol: 'circle',
+          symbolSize: 6,
+          areaStyle: { color: 'rgba(74, 134, 212, 0.1)' }
+        });
+      }
+      if (center) {
+        series.push({
+          type: 'scatter',
+          data: [[center.temp, center.hold]],
+          symbolSize: 10,
+          itemStyle: { color: '#d97a2b' }
+        });
+      }
+
+      chart.setOption({
+        grid: { left: 60, right: 40, top: 28, bottom: 60, containLabel: true },
+        xAxis: { type: 'value', name: 'Temperature (°C)' },
+        yAxis: { type: 'value', name: 'Hold pressure (bar)' },
+        series
+      });
+    };
+
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('[data-run-row]')) return;
+      handleRunInput(target);
+      updateCpwChart();
+    });
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('[data-run-row]')) return;
+      handleRunInput(target);
+      updateCpwChart();
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-run-delete]');
+      if (!target) return;
+      const row = target.closest('[data-run-row]');
+      const runId = row?.dataset.runId;
+      if (!runId) return;
+      fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs/${runId}/delete`, {
+        method: 'POST'
+      }).then(() => {
+        row?.remove();
+        updateCpwChart();
+      });
+    });
+
+    updateCpwChart();
+
+    const ensureRuns = async (count) => {
+      const tbody = document.querySelector('.table-scroll tbody');
+      const existingRows = Array.from(document.querySelectorAll('[data-run-row]'));
+      if (existingRows.length >= count) return existingRows;
+      const emptyRow = tbody?.querySelector('tr td[colspan]');
+      if (emptyRow) emptyRow.parentElement.remove();
+      const runs = [...existingRows];
+      const toCreate = count - runs.length;
+      for (let i = 0; i < toCreate; i += 1) {
+        const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs`, {
+          method: 'POST'
+        });
+        if (!resp.ok) break;
+        const data = await resp.json();
+        if (!data?.run) continue;
+        const row = makeCpwRunRow(data.run);
+        tbody?.appendChild(row);
+        runs.push(row);
+      }
+      return runs;
+    };
+
+    const setFieldValue = (input, value, fieldType) => {
+      if (!input) return;
+      if (fieldType === 'boolean') {
+        input.checked = Boolean(value);
+        handleRunInput(input);
+        return;
+      }
+      input.value = value;
+      handleRunInput(input);
+    };
+
+    cpwGenerateRunsBtn?.addEventListener('click', async () => {
+      const tempRange = parseRange(cpwTempRangeInput?.value);
+      const holdRange = parseRange(cpwHoldRangeInput?.value);
+      const lowTemp = tempRange.min;
+      const highTemp = tempRange.max;
+      const lowHold = holdRange.min;
+      const highHold = holdRange.max;
+      if (![lowTemp, highTemp, lowHold, highHold].every((v) => Number.isFinite(v))) {
+        window.alert('Enter low/high temperature and pressure first.');
+        return;
+      }
+      const mode = cpwGenModeInput?.value || 'corners';
+      let points = [];
+      if (mode === 'grid') {
+        const tStep = parseNum(cpwTempStepInput?.value);
+        const pStep = parseNum(cpwHoldStepInput?.value);
+        if (!Number.isFinite(tStep) || !Number.isFinite(pStep) || tStep <= 0 || pStep <= 0) {
+          window.alert('Enter positive temp/pressure step for grid mode.');
+          return;
+        }
+        const temps = [];
+        for (let t = lowTemp; t <= highTemp + 1e-6; t += tStep) temps.push(t);
+        if (temps[temps.length - 1] !== highTemp) temps.push(highTemp);
+        const holds = [];
+        for (let p = lowHold; p <= highHold + 1e-6; p += pStep) holds.push(p);
+        if (holds[holds.length - 1] !== highHold) holds.push(highHold);
+        temps.forEach((t) => {
+          holds.forEach((p) => points.push({ temp: t, hold: p }));
+        });
+      } else if (mode === 'grid_mid') {
+        const midTemp = (lowTemp + highTemp) / 2;
+        const midHold = (lowHold + highHold) / 2;
+        const temps = [lowTemp, midTemp, highTemp];
+        const holds = [lowHold, midHold, highHold];
+        temps.forEach((t) => {
+          holds.forEach((p) => points.push({ temp: t, hold: p }));
+        });
+      } else {
+        points = [
+          { temp: lowTemp, hold: lowHold },
+          { temp: lowTemp, hold: highHold },
+          { temp: highTemp, hold: lowHold },
+          { temp: highTemp, hold: highHold }
+        ];
+      }
+      if (points.length > 50) {
+        window.alert(`Too many points (${points.length}). Increase step size.`);
+        return;
+      }
+      points.sort((a, b) => {
+        if (a.temp === b.temp) return a.hold - b.hold;
+        return a.temp - b.temp;
+      });
+      const rows = await ensureRuns(points.length);
+      rows.slice(0, points.length).forEach((row, idx) => {
+        const tempInput = tempFieldId ? row.querySelector(`[data-field-id="${tempFieldId}"]`) : null;
+        const holdInput = holdFieldId ? row.querySelector(`[data-field-id="${holdFieldId}"]`) : null;
+        const shortInput = shortFieldId ? row.querySelector(`[data-field-id="${shortFieldId}"]`) : null;
+        const flashInput = flashFieldId ? row.querySelector(`[data-field-id="${flashFieldId}"]`) : null;
+        setFieldValue(tempInput, points[idx].temp, 'number');
+        setFieldValue(holdInput, points[idx].hold, 'number');
+        setFieldValue(shortInput, false, 'boolean');
+        setFieldValue(flashInput, false, 'boolean');
+      });
+      updateCpwChart();
+    });
+  }
+
+  importBtn?.addEventListener('click', async () => {
+    const option = librarySelect?.selectedOptions?.[0];
+    if (!option || !option.value) return;
+    if (stepNumber === 2) {
+      if (option.dataset.type === 'tag') return;
+      const payload = new URLSearchParams();
+      payload.append('code', option.dataset.code || '');
+      payload.append('label', option.dataset.label || option.textContent || '');
+      payload.append('unit', option.dataset.unit || '');
+      payload.append('field_type', option.dataset.type || 'number');
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/${stepNumber}/cavity-fields`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (typeof addCavityFieldColumn === 'function') {
+        addCavityFieldColumn(data);
+      }
+      librarySelect.value = '';
+      return;
+    }
+    if (stepNumber === 3) {
+      const option = librarySelect?.selectedOptions?.[0];
+      if (!option || !option.value) return;
+      if (option.dataset.type && option.dataset.type !== 'number') return;
+      const payload = new URLSearchParams();
+      payload.append('code', option.dataset.code || option.value);
+      payload.append('label', option.dataset.label || option.textContent || '');
+      payload.append('unit', option.dataset.unit || '');
+      payload.append('field_type', option.dataset.type || 'number');
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/${stepNumber}/pressure-fields`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const headerRow = document.querySelector('.table-scroll thead tr');
+      const peakHeader = headerRow?.querySelector('th:last-child');
+      const th = document.createElement('th');
+      th.dataset.pressureCustom = '1';
+      th.dataset.suffix = data.suffix;
+      th.dataset.type = data.field_type;
+      th.textContent = data.label || data.suffix;
+      if (data.unit) {
+        const unitEl = document.createElement('span');
+        unitEl.className = 'small-note';
+        unitEl.textContent = ` ${data.unit}`;
+        th.appendChild(unitEl);
+      }
+      if (headerRow && peakHeader) headerRow.insertBefore(th, peakHeader);
+      const fieldMap = new Map((data.fields || []).map((field) => [String(field.section), field.id]));
+      document.querySelectorAll('tr[data-pressure-row]').forEach((row) => {
+        const sectionKey = row.dataset.sectionCode || '';
+        const cell = document.createElement('td');
+        cell.dataset.pressureSuffix = data.suffix;
+        const fieldId = fieldMap.get(sectionKey) || '';
+        if (data.field_type === 'boolean') {
+          cell.innerHTML = `<input type="checkbox" data-field-id="${fieldId}" data-field-type="boolean">`;
+        } else if (data.field_type === 'text') {
+          cell.innerHTML = `<input type="text" data-field-id="${fieldId}" data-field-type="text" value="">`;
+        } else {
+          cell.innerHTML = `<input type="number" step="any" data-field-id="${fieldId}" data-field-type="number" value="">`;
+        }
+        const peakCell = row.querySelector('[data-peak-value]')?.closest('td');
+        if (peakCell) {
+          row.insertBefore(cell, peakCell);
+        } else {
+          row.appendChild(cell);
+        }
+      });
+      const row = document.createElement('tr');
+      row.dataset.pressureField = '1';
+      row.dataset.suffix = data.suffix;
+      row.innerHTML = `
+        <td><input data-field-code value="${data.suffix}" readonly></td>
+        <td><input data-field-label value="${data.label}"></td>
+        <td>
+          <select data-field-type>
+            <option value="number" ${data.field_type === 'number' ? 'selected' : ''}>number</option>
+            <option value="text" ${data.field_type === 'text' ? 'selected' : ''}>text</option>
+            <option value="boolean" ${data.field_type === 'boolean' ? 'selected' : ''}>boolean</option>
+          </select>
+        </td>
+        <td><input data-field-unit value="${data.unit || ''}"></td>
+        <td>
+          <button class="icon-button danger" type="button" data-field-delete title="Delete field">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      fieldBody?.appendChild(row);
+      librarySelect.value = '';
+      return;
+    }
+    if (stepNumber === 3 && option.dataset.type && option.dataset.type !== 'number') return;
+    if (stepNumber === 1 && option.dataset.type === 'tag') return;
+    if (stepNumber === 3) {
+      const label = option.dataset.label || option.textContent || '';
+      if (!label) return;
+      const payload = new URLSearchParams();
+      payload.append('label', label);
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/pressure-points`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const row = document.createElement('tr');
+      row.dataset.pressureField = '1';
+      row.dataset.fieldId = String(data.id);
+      row.innerHTML = `
+        <td><input data-field-code value="${data.code || ''}" readonly></td>
+        <td><input data-field-label value="${data.label}"></td>
+        <td>
+          <button class="icon-button danger" type="button" data-field-delete title="Delete field">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      fieldBody?.appendChild(row);
+      updatePressureChart();
+      return;
+    }
+    const payload = new URLSearchParams();
+    payload.append('param_id', option.value);
+    const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/fields/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: payload
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    appendFieldRow({
+      id: data.id,
+      code: data.code,
+      label: data.label,
+      field_type: data.field_type,
+      unit: data.unit,
+      group_label: data.group_label,
+      required: data.required,
+      is_enabled: data.is_enabled
+    });
+    if (stepNumber === 1) {
+      addRheoFieldColumn(data);
+    }
+    if (stepNumber === 4) {
+      addCpwFieldColumn(data);
+    }
+  });
+
+  customForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(customForm);
+    if (stepNumber === 2) {
+      const payload = new URLSearchParams();
+      payload.append('code', String(formData.get('code') || '').trim());
+      payload.append('label', String(formData.get('label') || '').trim());
+      payload.append('unit', String(formData.get('unit') || '').trim());
+      payload.append('field_type', String(formData.get('field_type') || 'number'));
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/${stepNumber}/cavity-fields`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (typeof addCavityFieldColumn === 'function') {
+        addCavityFieldColumn(data);
+      }
+      customForm.reset();
+      return;
+    }
+    if (stepNumber === 3) {
+      const payload = new URLSearchParams();
+      payload.append('code', String(formData.get('code') || '').trim());
+      payload.append('label', String(formData.get('label') || '').trim());
+      payload.append('unit', String(formData.get('unit') || '').trim());
+      payload.append('field_type', String(formData.get('field_type') || 'number'));
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/${stepNumber}/pressure-fields`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const headerRow = document.querySelector('.table-scroll thead tr');
+      const peakHeader = headerRow?.querySelector('th:last-child');
+      const th = document.createElement('th');
+      th.dataset.pressureCustom = '1';
+      th.dataset.suffix = data.suffix;
+      th.dataset.type = data.field_type;
+      th.textContent = data.label || data.suffix;
+      if (data.unit) {
+        const unitEl = document.createElement('span');
+        unitEl.className = 'small-note';
+        unitEl.textContent = ` ${data.unit}`;
+        th.appendChild(unitEl);
+      }
+      if (headerRow && peakHeader) headerRow.insertBefore(th, peakHeader);
+      const fieldMap = new Map((data.fields || []).map((field) => [String(field.section), field.id]));
+      document.querySelectorAll('tr[data-pressure-row]').forEach((row) => {
+        const sectionKey = row.dataset.sectionCode || '';
+        const cell = document.createElement('td');
+        cell.dataset.pressureSuffix = data.suffix;
+        const fieldId = fieldMap.get(sectionKey) || '';
+        if (data.field_type === 'boolean') {
+          cell.innerHTML = `<input type="checkbox" data-field-id="${fieldId}" data-field-type="boolean">`;
+        } else if (data.field_type === 'text') {
+          cell.innerHTML = `<input type="text" data-field-id="${fieldId}" data-field-type="text" value="">`;
+        } else {
+          cell.innerHTML = `<input type="number" step="any" data-field-id="${fieldId}" data-field-type="number" value="">`;
+        }
+        const peakCell = row.querySelector('[data-peak-value]')?.closest('td');
+        if (peakCell) {
+          row.insertBefore(cell, peakCell);
+        } else {
+          row.appendChild(cell);
+        }
+      });
+      const row = document.createElement('tr');
+      row.dataset.pressureField = '1';
+      row.dataset.suffix = data.suffix;
+      row.innerHTML = `
+        <td><input data-field-code value="${data.suffix}" readonly></td>
+        <td><input data-field-label value="${data.label}"></td>
+        <td>
+          <select data-field-type>
+            <option value="number" ${data.field_type === 'number' ? 'selected' : ''}>number</option>
+            <option value="text" ${data.field_type === 'text' ? 'selected' : ''}>text</option>
+            <option value="boolean" ${data.field_type === 'boolean' ? 'selected' : ''}>boolean</option>
+          </select>
+        </td>
+        <td><input data-field-unit value="${data.unit || ''}"></td>
+        <td>
+          <button class="icon-button danger" type="button" data-field-delete title="Delete field">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      fieldBody?.appendChild(row);
+      customForm.reset();
+      return;
+    }
+    const payload = new URLSearchParams();
+    payload.append('code', String(formData.get('code') || '').trim());
+    payload.append('label', String(formData.get('label') || '').trim());
+    payload.append('field_type', String(formData.get('field_type') || 'number'));
+    payload.append('unit', String(formData.get('unit') || '').trim());
+    payload.append('group_label', String(formData.get('group_label') || '').trim());
+    const allowed = String(formData.get('allowed_values') || '').trim();
+    if (allowed) {
+      payload.append('allowed_values_json', JSON.stringify(allowed.split(',').map((t) => t.trim()).filter(Boolean)));
+    }
+    const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/fields`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: payload
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    appendFieldRow({
+      id: data.id,
+      code: payload.get('code'),
+      label: payload.get('label'),
+      field_type: payload.get('field_type'),
+      unit: payload.get('unit'),
+      group_label: payload.get('group_label'),
+      required: 0,
+      is_enabled: 1
+    });
+    if (stepNumber === 1) {
+      addRheoFieldColumn({
+        id: data.id,
+        code: payload.get('code'),
+        label: payload.get('label'),
+        field_type: payload.get('field_type'),
+        unit: payload.get('unit')
+      });
+    }
+    if (stepNumber === 4) {
+      addCpwFieldColumn({
+        id: data.id,
+        code: payload.get('code'),
+        label: payload.get('label'),
+        field_type: payload.get('field_type'),
+        unit: payload.get('unit')
+      });
+    }
+    customForm.reset();
+  });
+
+  fieldBody?.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-field-delete]');
+    if (!btn) return;
+    if (stepNumber === 3) {
+      const row = btn.closest('tr[data-pressure-field]');
+      const suffix = row?.dataset.suffix;
+      if (!suffix) return;
+      fetch(`/experiments/<%= experimentId %>/qualification/${stepNumber}/pressure-fields/${suffix}/delete`, {
+        method: 'POST'
+      }).then(() => {
+        row?.remove();
+        document.querySelector(`th[data-pressure-custom][data-suffix="${suffix}"]`)?.remove();
+        document.querySelectorAll(`td[data-pressure-suffix="${suffix}"]`).forEach((cell) => cell.remove());
+        if (typeof updatePressureChart === 'function') updatePressureChart();
+      });
+      return;
+    }
+    const row = btn.closest('tr[data-field-id]');
+    const fieldId = row?.dataset.fieldId;
+    if (!fieldId) return;
+    fetch(`/experiments/<%= experimentId %>/qualification/fields/${fieldId}/delete`, {
+      method: 'POST'
+    }).then(() => {
+      row?.remove();
+      removeRheoFieldColumn(fieldId);
+      removeCpwFieldColumn(fieldId);
+    });
+  });
+
+  if (stepNumber === 3) {
+    let pressureTimer = null;
+    fieldBody?.addEventListener('input', (event) => {
+      const row = event.target.closest('tr[data-pressure-field]');
+      if (!row) return;
+      const suffix = row.dataset.suffix;
+      if (!suffix) return;
+      if (pressureTimer) clearTimeout(pressureTimer);
+      pressureTimer = setTimeout(async () => {
+        const payload = new URLSearchParams();
+        payload.append('label', row.querySelector('[data-field-label]')?.value || '');
+        payload.append('unit', row.querySelector('[data-field-unit]')?.value || '');
+        payload.append('field_type', row.querySelector('[data-field-type]')?.value || 'number');
+        await fetch(`/experiments/<%= experimentId %>/qualification/${stepNumber}/pressure-fields/${suffix}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+        const header = document.querySelector(`th[data-pressure-custom][data-suffix="${suffix}"]`);
+        if (header) {
+          header.textContent = row.querySelector('[data-field-label]')?.value || suffix;
+          const unit = row.querySelector('[data-field-unit]')?.value;
+          if (unit) {
+            const unitEl = document.createElement('span');
+            unitEl.className = 'small-note';
+            unitEl.textContent = ` ${unit}`;
+            header.appendChild(unitEl);
+          }
+          header.dataset.type = row.querySelector('[data-field-type]')?.value || 'number';
+        }
+        const nextType = row.querySelector('[data-field-type]')?.value || 'number';
+        document.querySelectorAll(`td[data-pressure-suffix="${suffix}"]`).forEach((cell) => {
+          const input = cell.querySelector('input');
+          if (!input) return;
+          const fieldId = input.dataset.fieldId || '';
+          if (nextType === 'boolean') {
+            if (input.type !== 'checkbox') {
+              const next = document.createElement('input');
+              next.type = 'checkbox';
+              next.dataset.fieldId = fieldId;
+              next.dataset.fieldType = 'boolean';
+              cell.innerHTML = '';
+              cell.appendChild(next);
+            }
+            return;
+          }
+          if (nextType === 'text') {
+            if (input.type !== 'text') {
+              const next = document.createElement('input');
+              next.type = 'text';
+              next.dataset.fieldId = fieldId;
+              next.dataset.fieldType = 'text';
+              cell.innerHTML = '';
+              cell.appendChild(next);
+            }
+            return;
+          }
+          if (input.type !== 'number') {
+            const next = document.createElement('input');
+            next.type = 'number';
+            next.step = 'any';
+            next.dataset.fieldId = fieldId;
+            next.dataset.fieldType = 'number';
+            cell.innerHTML = '';
+            cell.appendChild(next);
+          }
+        });
+      }, 400);
+    });
+  }
+</script>
+<%- include('partials/foot') %>
