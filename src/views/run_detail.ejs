@@ -81,13 +81,26 @@
                   <% let selected = []; %>
                   <% if (valueRow?.value_tags_json) { try { const parsed = JSON.parse(valueRow.value_tags_json); if (Array.isArray(parsed)) selected = parsed.map(String); } catch {} } %>
                   <input type="hidden" name="analysis_<%= field.id %>" value="">
-                  <div class="tag-grid">
-                    <% field.allowedValues.forEach((tag) => { %>
-                      <label class="tag-toggle">
-                        <input type="checkbox" name="analysis_<%= field.id %>" value="<%= tag %>" <%= selected.includes(tag) ? 'checked' : '' %>>
+                  <div class="tag-select" data-tag-select>
+                    <div class="tag-selected" data-tag-selected>
+                      <% if (selected.length === 0) { %>
+                        <span class="tag-placeholder">Select...</span>
+                      <% } %>
+                      <% selected.forEach((tag) => { %>
                         <span class="tag-chip"><%- formatInline(tag) %></span>
-                      </label>
-                    <% }); %>
+                      <% }); %>
+                    </div>
+                    <div class="tag-panel" data-tag-panel>
+                      <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                      <div class="tag-options">
+                        <% field.allowedValues.forEach((tag) => { %>
+                          <label class="tag-option" data-tag-option data-tag-label="<%= tag %>">
+                            <input type="checkbox" name="analysis_<%= field.id %>" value="<%= tag %>" <%= selected.includes(tag) ? 'checked' : '' %>>
+                            <span class="tag-chip"><%- formatInline(tag) %></span>
+                          </label>
+                        <% }); %>
+                      </div>
+                    </div>
                   </div>
                 <% } else if (field.field_type === 'text') { %>
                   <input type="text" name="analysis_<%= field.id %>" value="<%= valueRow?.value_text ?? '' %>">

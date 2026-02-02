@@ -126,7 +126,6 @@ const stepDefinitions: StepDefinition[] = [
     fields: [
       { code: "cooling_time_s", label: "Cooling time", field_type: "number", unit: "s", group_label: "Inputs", required: 1 },
       { code: "cosmetic_ok", label: "Cosmetic OK", field_type: "boolean", unit: null, group_label: "Measurements" },
-      { code: "warpage_mm", label: "Warpage", field_type: "number", unit: "mm", group_label: "Measurements" },
       { code: "critical_dim_mm", label: "Critical dimension", field_type: "number", unit: "mm", group_label: "Measurements" }
     ]
   }
@@ -226,6 +225,12 @@ export function ensureQualificationDefaults(db: Db, experimentId: number) {
             inj_speed: null
           })
         );
+      }
+    }
+    if (step.step_number === 6) {
+      const warpageField = fields.find((field) => field.code === "warpage_mm");
+      if (warpageField && warpageField.is_enabled !== 0) {
+        updateQualField(db, warpageField.id, { is_enabled: 0 });
       }
     }
     const runs = listQualRuns(db, step.id);

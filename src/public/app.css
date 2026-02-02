@@ -579,6 +579,12 @@ sub {
 
 .table-scroll {
   overflow-x: auto;
+  overflow-y: visible;
+  position: relative;
+}
+
+.table-scroll table {
+  overflow: visible;
 }
 
 .rheo-table input[type="number"] {
@@ -1052,6 +1058,77 @@ table.pure-table {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 0.35rem 0.5rem;
+}
+
+.tag-select {
+  position: relative;
+}
+
+.tag-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 34px;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.tag-placeholder {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.tag-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 220px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.12);
+  padding: 0.5rem;
+  display: none;
+}
+
+.tag-panel.is-portal {
+  position: fixed;
+}
+
+.tag-select {
+  min-width: 160px;
+}
+
+.tag-panel {
+  z-index: 2000;
+}
+
+.tag-select.is-open .tag-panel {
+  display: block;
+}
+
+.tag-filter {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.tag-options {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.tag-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .tag-toggle {

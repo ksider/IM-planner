@@ -86,7 +86,12 @@
               <th>Press pressure <span class="small-note"><%= (unitByCode.peak_inj_pressure || pressField?.unit || '') %></span></th>
               <th>Fill time <span class="small-note"><%= (unitByCode.fill_time || fillField?.unit || '') %></span></th>
       <% extraFields.forEach((field) => { %>
-        <th data-extra-field data-field-id="<%= field.id %>" data-field-type="<%= field.field_type %>"><%- formatInline(field.label) %><% if (field.unit) { %> <span class="small-note"><%= field.unit %></span><% } %></th>
+        <th
+          data-extra-field
+          data-field-id="<%= field.id %>"
+          data-field-type="<%= field.field_type %>"
+          data-field-allowed="<%= field.allowed_values_json || '' %>"
+        ><%- formatInline(field.label) %><% if (field.unit) { %> <span class="small-note"><%= field.unit %></span><% } %></th>
       <% }); %>
               <th data-rheo-derived>Shear rate <span class="small-note"><%= shearRateField?.unit || '' %></span></th>
               <th>Rel. viscosity <span class="small-note"><%= viscField?.unit || '' %></span></th>
@@ -116,6 +121,32 @@
                       <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="boolean" <%= val?.value_real === 1 ? 'checked' : '' %>>
                     <% } else if (field.field_type === 'text') { %>
                       <input type="text" data-field-id="<%= field.id %>" data-field-type="text" value="<%- formatInline(val?.value_text || '') %>">
+                    <% } else if (field.field_type === 'tag') { %>
+                      <% let allowed = []; %>
+                      <% if (field.allowed_values_json) { try { const parsed = JSON.parse(field.allowed_values_json); if (Array.isArray(parsed)) allowed = parsed; } catch {} } %>
+                      <% let selected = []; %>
+                      <% if (val?.value_tags_json) { try { const parsed = JSON.parse(val.value_tags_json); if (Array.isArray(parsed)) selected = parsed.map(String); } catch {} } %>
+                      <div class="tag-select" data-tag-select>
+                        <div class="tag-selected" data-tag-selected>
+                          <% if (selected.length === 0) { %>
+                            <span class="tag-placeholder">Select...</span>
+                          <% } %>
+                          <% selected.forEach((tag) => { %>
+                            <span class="tag-chip"><%- formatInline(tag) %></span>
+                          <% }); %>
+                        </div>
+                        <div class="tag-panel" data-tag-panel>
+                          <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                          <div class="tag-options">
+                            <% allowed.forEach((tag) => { %>
+                              <label class="tag-option" data-tag-option data-tag-label="<%= tag %>">
+                                <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="tag" data-tag-value="<%= tag %>" <%= selected.includes(String(tag)) ? 'checked' : '' %>>
+                                <span class="tag-chip"><%- formatInline(tag) %></span>
+                              </label>
+                            <% }); %>
+                          </div>
+                        </div>
+                      </div>
                     <% } else { %>
                       <input type="number" step="any" data-field-id="<%= field.id %>" data-field-type="number" value="<%= val?.value_real ?? '' %>">
                     <% } %>
@@ -234,13 +265,26 @@
                   </td>
                 <% }); %>
                 <td>
-                  <div class="tag-grid">
-                    <% cavityTags.forEach((tag) => { %>
-                      <label class="tag-toggle">
-                        <input type="checkbox" data-field-id="<%= defectField?.id %>" data-tag-value="<%= tag %>" <%= selected.includes(tag) ? 'checked' : '' %>>
+                  <div class="tag-select" data-tag-select>
+                    <div class="tag-selected" data-tag-selected>
+                      <% if (selected.length === 0) { %>
+                        <span class="tag-placeholder">Select...</span>
+                      <% } %>
+                      <% selected.forEach((tag) => { %>
                         <span class="tag-chip"><%- formatInline(tag) %></span>
-                      </label>
-                    <% }); %>
+                      <% }); %>
+                    </div>
+                    <div class="tag-panel" data-tag-panel>
+                      <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                      <div class="tag-options">
+                        <% cavityTags.forEach((tag) => { %>
+                          <label class="tag-option" data-tag-option data-tag-label="<%= tag %>">
+                            <input type="checkbox" data-field-id="<%= defectField?.id %>" data-tag-value="<%= tag %>" <%= selected.includes(tag) ? 'checked' : '' %>>
+                            <span class="tag-chip"><%- formatInline(tag) %></span>
+                          </label>
+                        <% }); %>
+                      </div>
+                    </div>
                   </div>
                 </td>
                 <td>
@@ -496,7 +540,12 @@
               <th>Short shot</th>
               <th>Flash</th>
               <% extraFields4.forEach((field) => { %>
-                <th data-extra-field data-field-id="<%= field.id %>" data-field-type="<%= field.field_type %>">
+                <th
+                  data-extra-field
+                  data-field-id="<%= field.id %>"
+                  data-field-type="<%= field.field_type %>"
+                  data-field-allowed="<%= field.allowed_values_json || '' %>"
+                >
                   <%- formatInline(field.label) %><% if (field.unit) { %> <span class="small-note"><%= field.unit %></span><% } %>
                 </th>
               <% }); %>
@@ -526,6 +575,32 @@
                       <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="boolean" <%= val?.value_real === 1 ? 'checked' : '' %>>
                     <% } else if (field.field_type === 'text') { %>
                       <input type="text" data-field-id="<%= field.id %>" data-field-type="text" value="<%- formatInline(val?.value_text || '') %>">
+                    <% } else if (field.field_type === 'tag') { %>
+                      <% let allowed = []; %>
+                      <% if (field.allowed_values_json) { try { const parsed = JSON.parse(field.allowed_values_json); if (Array.isArray(parsed)) allowed = parsed; } catch {} } %>
+                      <% let selected = []; %>
+                      <% if (val?.value_tags_json) { try { const parsed = JSON.parse(val.value_tags_json); if (Array.isArray(parsed)) selected = parsed.map(String); } catch {} } %>
+                      <div class="tag-select" data-tag-select>
+                        <div class="tag-selected" data-tag-selected>
+                          <% if (selected.length === 0) { %>
+                            <span class="tag-placeholder">Select...</span>
+                          <% } %>
+                          <% selected.forEach((tag) => { %>
+                            <span class="tag-chip"><%- formatInline(tag) %></span>
+                          <% }); %>
+                        </div>
+                        <div class="tag-panel" data-tag-panel>
+                          <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                          <div class="tag-options">
+                            <% allowed.forEach((tag) => { %>
+                              <label class="tag-option" data-tag-option data-tag-label="<%= tag %>">
+                                <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="tag" data-tag-value="<%= tag %>" <%= selected.includes(String(tag)) ? 'checked' : '' %>>
+                                <span class="tag-chip"><%- formatInline(tag) %></span>
+                              </label>
+                            <% }); %>
+                          </div>
+                        </div>
+                      </div>
                     <% } else { %>
                       <input type="number" step="any" data-field-id="<%= field.id %>" data-field-type="number" value="<%= val?.value_real ?? '' %>">
                     <% } %>
@@ -602,6 +677,287 @@
       </div>
     </dialog>
 
+  <% } else if (step.step_number === 5) { %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Setup</h2>
+        <div class="setup-actions">
+          <button class="pure-button pure-button-secondary" type="button" id="openGateSealSetup">Edit setup</button>
+        </div>
+      </div>
+      <div class="setup-summary">
+        <div>
+          <div class="small-note">Injection speed</div>
+          <div class="setup-value"><span id="gateSealInjSpeedValue"><%= settings.inj_speed ?? step1Recommended ?? '-' %></span> <span class="small-note">cm3/s</span></div>
+        </div>
+        <div>
+          <div class="small-note">Melt temperature</div>
+          <div class="setup-value"><%= step4CenterTemp ?? '-' %> <span class="small-note">&deg;C</span></div>
+        </div>
+        <div>
+          <div class="small-note">Hold pressure</div>
+          <div class="setup-value"><%= step4CenterPressure ?? '-' %> <span class="small-note">bar</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Gate seal study</h2>
+        <button class="icon-button" type="button" id="gateSealAddRun" title="Add run">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
+      </div>
+      <% const fieldByCode5 = new Map(); fields.forEach((field) => fieldByCode5.set(field.code, field)); %>
+      <% const holdField = fieldByCode5.get('hold_time_s'); %>
+      <% const weightField = fieldByCode5.get('part_weight_g'); %>
+      <% const baseCodes5 = new Set(['hold_time_s','part_weight_g']); %>
+      <% const extraFields5 = fields.filter((field) => !field.is_derived && !baseCodes5.has(field.code) && field.is_enabled); %>
+      <input type="hidden" id="gateSealFieldIds"
+        data-hold="<%= holdField?.id ?? '' %>"
+        data-weight="<%= weightField?.id ?? '' %>">
+      <div class="table-scroll">
+        <table class="pure-table table-compact" id="gateSealTable">
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Hold time <span class="small-note">s</span></th>
+              <th>Part weight <span class="small-note">g</span></th>
+              <% extraFields5.forEach((field) => { %>
+                <th
+                  data-extra-field
+                  data-field-id="<%= field.id %>"
+                  data-field-type="<%= field.field_type %>"
+                  data-field-allowed="<%= field.allowed_values_json || '' %>"
+                >
+                  <%- formatInline(field.label) %><% if (field.unit) { %> <span class="small-note"><%= field.unit %></span><% } %>
+                </th>
+              <% }); %>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (runs.length === 0) { %>
+              <tr><td colspan="<%= 4 + extraFields5.length %>">No runs yet.</td></tr>
+            <% } %>
+            <% runs.forEach((run) => { %>
+              <% const runValues5 = runValueMap[String(run.id)] || {}; %>
+              <% const holdVal = holdField ? (runValues5[String(holdField.id)]?.value_real ?? '') : ''; %>
+              <% const weightVal = weightField ? (runValues5[String(weightField.id)]?.value_real ?? '') : ''; %>
+              <tr data-run-row data-run-id="<%= run.id %>">
+                <td><strong><%= run.run_code %></strong></td>
+                <td><input type="number" step="any" data-field-id="<%= holdField?.id %>" data-field-type="number" value="<%= holdVal %>"></td>
+                <td><input type="number" step="any" data-field-id="<%= weightField?.id %>" data-field-type="number" value="<%= weightVal %>"></td>
+                <% extraFields5.forEach((field) => { %>
+                  <% const val = runValues5[String(field.id)]; %>
+                  <td>
+                    <% if (field.field_type === 'boolean') { %>
+                      <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="boolean" <%= val?.value_real === 1 ? 'checked' : '' %>>
+                    <% } else if (field.field_type === 'text') { %>
+                      <input type="text" data-field-id="<%= field.id %>" data-field-type="text" value="<%- formatInline(val?.value_text || '') %>">
+                    <% } else if (field.field_type === 'tag') { %>
+                      <% let allowed = []; %>
+                      <% if (field.allowed_values_json) { try { const parsed = JSON.parse(field.allowed_values_json); if (Array.isArray(parsed)) allowed = parsed; } catch {} } %>
+                      <% let selected = []; %>
+                      <% if (val?.value_tags_json) { try { const parsed = JSON.parse(val.value_tags_json); if (Array.isArray(parsed)) selected = parsed.map(String); } catch {} } %>
+                      <div class="tag-select" data-tag-select>
+                        <div class="tag-selected" data-tag-selected>
+                          <% if (selected.length === 0) { %>
+                            <span class="tag-placeholder">Select...</span>
+                          <% } %>
+                          <% selected.forEach((tag) => { %>
+                            <span class="tag-chip"><%- formatInline(tag) %></span>
+                          <% }); %>
+                        </div>
+                        <div class="tag-panel" data-tag-panel>
+                          <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                          <div class="tag-options">
+                            <% allowed.forEach((tag) => { %>
+                              <label class="tag-option" data-tag-option data-tag-label="<%= tag %>">
+                                <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="tag" data-tag-value="<%= tag %>" <%= selected.includes(String(tag)) ? 'checked' : '' %>>
+                                <span class="tag-chip"><%- formatInline(tag) %></span>
+                              </label>
+                            <% }); %>
+                          </div>
+                        </div>
+                      </div>
+                    <% } else { %>
+                      <input type="number" step="any" data-field-id="<%= field.id %>" data-field-type="number" value="<%= val?.value_real ?? '' %>">
+                    <% } %>
+                  </td>
+                <% }); %>
+                <td>
+                  <button class="icon-button danger" type="button" data-run-delete title="Delete row">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="chart-card" style="margin-top: 1rem;">
+        <div id="gateSealChart" style="width: 100%; height: 320px;"></div>
+        <div class="chart-actions">
+          <span class="small-note">Gate seal time: <span id="gateSealEstimate">-</span> s</span>
+          <span class="small-note">Threshold: 5% weight change</span>
+        </div>
+      </div>
+    </div>
+
+    <dialog class="modal-frame" id="gateSealSetupDialog">
+      <div class="modal-header">
+        <strong>Gate seal setup</strong>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid-two">
+          <div>
+            <label>Injection speed</label>
+            <input type="number" step="any" id="gateSealInjSpeed" value="<%= settings.inj_speed ?? step1Recommended ?? '' %>">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="save-status" id="gateSealSetupStatus">Saved</span>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+    </dialog>
+
+  <% } else if (step.step_number === 6) { %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Setup</h2>
+      </div>
+      <div class="setup-summary">
+        <div>
+          <div class="small-note">Injection speed</div>
+          <div class="setup-value"><%= step1Recommended ?? '-' %> <span class="small-note">cm3/s</span></div>
+        </div>
+        <div>
+          <div class="small-note">Melt temperature</div>
+          <div class="setup-value"><%= step4CenterTemp ?? '-' %> <span class="small-note">&deg;C</span></div>
+        </div>
+        <div>
+          <div class="small-note">Hold pressure</div>
+          <div class="setup-value"><%= step4CenterPressure ?? '-' %> <span class="small-note">bar</span></div>
+        </div>
+        <div>
+          <div class="small-note">Gate seal time</div>
+          <div class="setup-value"><%= step5GateSealTime ?? '-' %> <span class="small-note">s</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Cooling time optimization</h2>
+        <button class="icon-button" type="button" id="coolingAddRun" title="Add run">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
+      </div>
+      <% const fieldByCode6 = new Map(); fields.forEach((field) => fieldByCode6.set(field.code, field)); %>
+      <% const coolingField = fieldByCode6.get('cooling_time_s'); %>
+      <% const cosmeticField = fieldByCode6.get('cosmetic_ok'); %>
+      <% const criticalField = fieldByCode6.get('critical_dim_mm'); %>
+      <% const baseCodes6 = new Set(['cooling_time_s','cosmetic_ok','critical_dim_mm']); %>
+      <% const extraFields6 = fields.filter((field) => !field.is_derived && !baseCodes6.has(field.code) && field.is_enabled); %>
+      <input type="hidden" id="coolingFieldIds"
+        data-cooling="<%= coolingField?.id ?? '' %>"
+        data-cosmetic="<%= cosmeticField?.id ?? '' %>"
+        data-critical="<%= criticalField?.id ?? '' %>">
+      <div class="table-scroll">
+        <table class="pure-table table-compact" id="coolingTable">
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Cooling time <span class="small-note">s</span></th>
+              <th>Cosmetic OK</th>
+              <th>Critical dim <span class="small-note">mm</span></th>
+              <% extraFields6.forEach((field) => { %>
+                <th
+                  data-extra-field
+                  data-field-id="<%= field.id %>"
+                  data-field-type="<%= field.field_type %>"
+                  data-field-allowed="<%= field.allowed_values_json || '' %>"
+                >
+                  <%- formatInline(field.label) %><% if (field.unit) { %> <span class="small-note"><%= field.unit %></span><% } %>
+                </th>
+              <% }); %>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (runs.length === 0) { %>
+              <tr><td colspan="<%= 5 + extraFields6.length %>">No runs yet.</td></tr>
+            <% } %>
+            <% runs.forEach((run) => { %>
+              <% const runValues6 = runValueMap[String(run.id)] || {}; %>
+              <% const coolingVal = coolingField ? (runValues6[String(coolingField.id)]?.value_real ?? '') : ''; %>
+              <% const cosmeticVal = cosmeticField ? (runValues6[String(cosmeticField.id)]?.value_real ?? 0) : 0; %>
+              <% const criticalVal = criticalField ? (runValues6[String(criticalField.id)]?.value_real ?? '') : ''; %>
+              <tr data-run-row data-run-id="<%= run.id %>">
+                <td><strong><%= run.run_code %></strong></td>
+                <td><input type="number" step="any" data-field-id="<%= coolingField?.id %>" data-field-type="number" value="<%= coolingVal %>"></td>
+                <td><input type="checkbox" data-field-id="<%= cosmeticField?.id %>" data-field-type="boolean" <%= cosmeticVal === 1 ? 'checked' : '' %>></td>
+                <td><input type="number" step="any" data-field-id="<%= criticalField?.id %>" data-field-type="number" value="<%= criticalVal %>"></td>
+                <% extraFields6.forEach((field) => { %>
+                  <% const val = runValues6[String(field.id)]; %>
+                  <td>
+                    <% if (field.field_type === 'boolean') { %>
+                      <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="boolean" <%= val?.value_real === 1 ? 'checked' : '' %>>
+                    <% } else if (field.field_type === 'text') { %>
+                      <input type="text" data-field-id="<%= field.id %>" data-field-type="text" value="<%- formatInline(val?.value_text || '') %>">
+                    <% } else if (field.field_type === 'tag') { %>
+                      <% let allowed = []; %>
+                      <% if (field.allowed_values_json) { try { const parsed = JSON.parse(field.allowed_values_json); if (Array.isArray(parsed)) allowed = parsed; } catch {} } %>
+                      <% let selected = []; %>
+                      <% if (val?.value_tags_json) { try { const parsed = JSON.parse(val.value_tags_json); if (Array.isArray(parsed)) selected = parsed.map(String); } catch {} } %>
+                      <div class="tag-select" data-tag-select>
+                        <div class="tag-selected" data-tag-selected>
+                          <% if (selected.length === 0) { %>
+                            <span class="tag-placeholder">Select...</span>
+                          <% } %>
+                          <% selected.forEach((tag) => { %>
+                            <span class="tag-chip"><%- formatInline(tag) %></span>
+                          <% }); %>
+                        </div>
+                        <div class="tag-panel" data-tag-panel>
+                          <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                          <div class="tag-options">
+                            <% allowed.forEach((tag) => { %>
+                              <label class="tag-option" data-tag-option data-tag-label="<%= tag %>">
+                                <input type="checkbox" data-field-id="<%= field.id %>" data-field-type="tag" data-tag-value="<%= tag %>" <%= selected.includes(String(tag)) ? 'checked' : '' %>>
+                                <span class="tag-chip"><%- formatInline(tag) %></span>
+                              </label>
+                            <% }); %>
+                          </div>
+                        </div>
+                      </div>
+                    <% } else { %>
+                      <input type="number" step="any" data-field-id="<%= field.id %>" data-field-type="number" value="<%= val?.value_real ?? '' %>">
+                    <% } %>
+                  </td>
+                <% }); %>
+                <td>
+                  <button class="icon-button danger" type="button" data-run-delete title="Delete row">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="chart-card" style="margin-top: 1rem;">
+        <div id="coolingChart" style="width: 100%; height: 320px;"></div>
+        <div class="chart-actions">
+          <span class="small-note">Min cooling time (cosmetic OK): <span id="coolingMinTime">-</span> s</span>
+        </div>
+      </div>
+    </div>
   <% } else { %>
     <div class="card">
       <h2 class="card-title">Runs</h2>
@@ -1055,6 +1411,7 @@
     th.dataset.extraField = '1';
     th.dataset.fieldId = String(field.id);
     th.dataset.fieldType = field.field_type || 'number';
+    th.dataset.fieldAllowed = field.allowed_values_json || '';
     th.textContent = field.label || field.code || 'Field';
     if (field.unit) {
       const unitEl = document.createElement('span');
@@ -1071,6 +1428,36 @@
         td.innerHTML = `<input type="checkbox" data-field-id="${field.id}" data-field-type="boolean">`;
       } else if (field.field_type === 'text') {
         td.innerHTML = `<input type="text" data-field-id="${field.id}" data-field-type="text" value="">`;
+      } else if (field.field_type === 'tag') {
+        const tags = (() => {
+          try {
+            const parsed = JSON.parse(field.allowed_values_json || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })();
+        td.innerHTML = `
+          <div class="tag-select" data-tag-select>
+            <div class="tag-selected" data-tag-selected>
+              <span class="tag-placeholder">Select...</span>
+            </div>
+            <div class="tag-panel" data-tag-panel>
+              <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+              <div class="tag-options">
+                ${tags
+                  .map(
+                    (tag) => `
+                  <label class="tag-option" data-tag-option data-tag-label="${tag}">
+                    <input type="checkbox" data-field-id="${field.id}" data-field-type="tag" data-tag-value="${tag}">
+                    <span class="tag-chip">${tag}</span>
+                  </label>`
+                  )
+                  .join('')}
+              </div>
+            </div>
+          </div>
+        `;
       } else {
         td.innerHTML = `<input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value="">`;
       }
@@ -1103,6 +1490,7 @@
     th.dataset.extraField = '1';
     th.dataset.fieldId = String(field.id);
     th.dataset.fieldType = field.field_type || 'number';
+    th.dataset.fieldAllowed = field.allowed_values_json || '';
     th.textContent = field.label || field.code || 'Field';
     if (field.unit) {
       const unitEl = document.createElement('span');
@@ -1118,6 +1506,36 @@
         td.innerHTML = `<input type="checkbox" data-field-id="${field.id}" data-field-type="boolean">`;
       } else if (field.field_type === 'text') {
         td.innerHTML = `<input type="text" data-field-id="${field.id}" data-field-type="text" value="">`;
+      } else if (field.field_type === 'tag') {
+        const tags = (() => {
+          try {
+            const parsed = JSON.parse(field.allowed_values_json || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })();
+        td.innerHTML = `
+          <div class="tag-select" data-tag-select>
+            <div class="tag-selected" data-tag-selected>
+              <span class="tag-placeholder">Select...</span>
+            </div>
+            <div class="tag-panel" data-tag-panel>
+              <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+              <div class="tag-options">
+                ${tags
+                  .map(
+                    (tag) => `
+                  <label class="tag-option" data-tag-option data-tag-label="${tag}">
+                    <input type="checkbox" data-field-id="${field.id}" data-field-type="tag" data-tag-value="${tag}">
+                    <span class="tag-chip">${tag}</span>
+                  </label>`
+                  )
+                  .join('')}
+              </div>
+            </div>
+          </div>
+        `;
       } else {
         td.innerHTML = `<input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value="">`;
       }
@@ -1137,6 +1555,164 @@
       .forEach((el) => el.remove());
     document
       .querySelectorAll(`tbody tr[data-run-row] input[data-field-id="${fieldId}"]`)
+      .forEach((input) => input.closest('td')?.remove());
+  };
+
+  const addGateSealFieldColumn = (field) => {
+    if (<%= step.step_number %> !== 5) return;
+    if (!field?.id) return;
+    if (document.querySelector(`th[data-extra-field][data-field-id="${field.id}"]`)) return;
+    const headerRow = document.querySelector('#gateSealTable thead tr');
+    const actionHeader = headerRow?.querySelector('th:last-child');
+    if (!headerRow || !actionHeader) return;
+    const th = document.createElement('th');
+    th.dataset.extraField = '1';
+    th.dataset.fieldId = String(field.id);
+    th.dataset.fieldType = field.field_type || 'number';
+    th.dataset.fieldAllowed = field.allowed_values_json || '';
+    th.textContent = field.label || field.code || 'Field';
+    if (field.unit) {
+      const unitEl = document.createElement('span');
+      unitEl.className = 'small-note';
+      unitEl.textContent = ` ${field.unit}`;
+      th.appendChild(unitEl);
+    }
+    headerRow.insertBefore(th, actionHeader);
+
+    document.querySelectorAll('#gateSealTable tbody tr[data-run-row]').forEach((row) => {
+      const td = document.createElement('td');
+      if (field.field_type === 'boolean') {
+        td.innerHTML = `<input type="checkbox" data-field-id="${field.id}" data-field-type="boolean">`;
+      } else if (field.field_type === 'text') {
+        td.innerHTML = `<input type="text" data-field-id="${field.id}" data-field-type="text" value="">`;
+      } else if (field.field_type === 'tag') {
+        const tags = (() => {
+          try {
+            const parsed = JSON.parse(field.allowed_values_json || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })();
+        td.innerHTML = `
+          <div class="tag-select" data-tag-select>
+            <div class="tag-selected" data-tag-selected>
+              <span class="tag-placeholder">Select...</span>
+            </div>
+            <div class="tag-panel" data-tag-panel>
+              <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+              <div class="tag-options">
+                ${tags
+                  .map(
+                    (tag) => `
+                  <label class="tag-option" data-tag-option data-tag-label="${tag}">
+                    <input type="checkbox" data-field-id="${field.id}" data-field-type="tag" data-tag-value="${tag}">
+                    <span class="tag-chip">${tag}</span>
+                  </label>`
+                  )
+                  .join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        td.innerHTML = `<input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value="">`;
+      }
+      const actionCell = row.querySelector('[data-run-delete]')?.closest('td');
+      if (actionCell) {
+        row.insertBefore(td, actionCell);
+      } else {
+        row.appendChild(td);
+      }
+    });
+  };
+
+  const removeGateSealFieldColumn = (fieldId) => {
+    if (<%= step.step_number %> !== 5) return;
+    document
+      .querySelectorAll(`#gateSealTable th[data-extra-field][data-field-id="${fieldId}"]`)
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll(`#gateSealTable tbody tr[data-run-row] input[data-field-id="${fieldId}"]`)
+      .forEach((input) => input.closest('td')?.remove());
+  };
+
+  const addCoolingFieldColumn = (field) => {
+    if (<%= step.step_number %> !== 6) return;
+    if (!field?.id) return;
+    if (document.querySelector(`th[data-extra-field][data-field-id="${field.id}"]`)) return;
+    const headerRow = document.querySelector('#coolingTable thead tr');
+    const actionHeader = headerRow?.querySelector('th:last-child');
+    if (!headerRow || !actionHeader) return;
+    const th = document.createElement('th');
+    th.dataset.extraField = '1';
+    th.dataset.fieldId = String(field.id);
+    th.dataset.fieldType = field.field_type || 'number';
+    th.dataset.fieldAllowed = field.allowed_values_json || '';
+    th.textContent = field.label || field.code || 'Field';
+    if (field.unit) {
+      const unitEl = document.createElement('span');
+      unitEl.className = 'small-note';
+      unitEl.textContent = ` ${field.unit}`;
+      th.appendChild(unitEl);
+    }
+    headerRow.insertBefore(th, actionHeader);
+
+    document.querySelectorAll('#coolingTable tbody tr[data-run-row]').forEach((row) => {
+      const td = document.createElement('td');
+      if (field.field_type === 'boolean') {
+        td.innerHTML = `<input type="checkbox" data-field-id="${field.id}" data-field-type="boolean">`;
+      } else if (field.field_type === 'text') {
+        td.innerHTML = `<input type="text" data-field-id="${field.id}" data-field-type="text" value="">`;
+      } else if (field.field_type === 'tag') {
+        const tags = (() => {
+          try {
+            const parsed = JSON.parse(field.allowed_values_json || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })();
+        td.innerHTML = `
+          <div class="tag-select" data-tag-select>
+            <div class="tag-selected" data-tag-selected>
+              <span class="tag-placeholder">Select...</span>
+            </div>
+            <div class="tag-panel" data-tag-panel>
+              <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+              <div class="tag-options">
+                ${tags
+                  .map(
+                    (tag) => `
+                  <label class="tag-option" data-tag-option data-tag-label="${tag}">
+                    <input type="checkbox" data-field-id="${field.id}" data-field-type="tag" data-tag-value="${tag}">
+                    <span class="tag-chip">${tag}</span>
+                  </label>`
+                  )
+                  .join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        td.innerHTML = `<input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value="">`;
+      }
+      const actionCell = row.querySelector('[data-run-delete]')?.closest('td');
+      if (actionCell) {
+        row.insertBefore(td, actionCell);
+      } else {
+        row.appendChild(td);
+      }
+    });
+  };
+
+  const removeCoolingFieldColumn = (fieldId) => {
+    if (<%= step.step_number %> !== 6) return;
+    document
+      .querySelectorAll(`#coolingTable th[data-extra-field][data-field-id="${fieldId}"]`)
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll(`#coolingTable tbody tr[data-run-row] input[data-field-id="${fieldId}"]`)
       .forEach((input) => input.closest('td')?.remove());
   };
 
@@ -1557,7 +2133,11 @@
     const saveRunValue = async (runId, fieldId, value) => {
       const payload = new URLSearchParams();
       payload.append('field_id', fieldId);
-      payload.append('value', value);
+      if (Array.isArray(value)) {
+        value.forEach((item) => payload.append('value', item));
+      } else {
+        payload.append('value', value);
+      }
       await fetch(`/qual-runs/${runId}/value`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1579,8 +2159,17 @@
       runSaveTimers.set(
         key,
         setTimeout(() => {
-          const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
-          saveRunValue(runId, fieldId, value);
+          if (fieldType === 'tag') {
+            const tags = Array.from(
+              row.querySelectorAll(`input[data-field-id="${fieldId}"][data-tag-value]`)
+            )
+              .filter((input) => input.checked)
+              .map((input) => input.dataset.tagValue || '');
+            saveRunValue(runId, fieldId, tags);
+          } else {
+            const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
+            saveRunValue(runId, fieldId, value);
+          }
           runSaveTimers.delete(key);
         }, 300)
       );
@@ -1991,17 +2580,25 @@
         <td><span class="small-note" data-cavity-fill>-</span></td>
         ${customCells}
         <td>
-          <div class="tag-grid">
-            ${(tags || [])
-              .map(
-                (tag) => `
-                <label class="tag-toggle">
-                  <input type="checkbox" data-field-id="${defectFieldId || ''}" data-tag-value="${tag}">
-                  <span class="tag-chip">${tag}</span>
-                </label>
-              `
-              )
-              .join('')}
+          <div class="tag-select" data-tag-select>
+            <div class="tag-selected" data-tag-selected>
+              <span class="tag-placeholder">Select...</span>
+            </div>
+            <div class="tag-panel" data-tag-panel>
+              <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+              <div class="tag-options">
+                ${(tags || [])
+                  .map(
+                    (tag) => `
+                    <label class="tag-option" data-tag-option data-tag-label="${tag}">
+                      <input type="checkbox" data-field-id="${defectFieldId || ''}" data-tag-value="${tag}">
+                      <span class="tag-chip">${tag}</span>
+                    </label>
+                  `
+                  )
+                  .join('')}
+              </div>
+            </div>
           </div>
         </td>
         <td>
@@ -2058,7 +2655,7 @@
         } else {
           td.innerHTML = `<input type="number" step="any" data-field-id="${fieldId}" data-field-type="number" value="">`;
         }
-        const defectsCell = row.querySelector('td .tag-grid')?.closest('td');
+        const defectsCell = row.querySelector('td .tag-select')?.closest('td');
         if (defectsCell) {
           row.insertBefore(td, defectsCell);
         } else {
@@ -2406,7 +3003,11 @@
     const saveRunValue = async (runId, fieldId, value) => {
       const payload = new URLSearchParams();
       payload.append('field_id', fieldId);
-      payload.append('value', value);
+      if (Array.isArray(value)) {
+        value.forEach((item) => payload.append('value', item));
+      } else {
+        payload.append('value', value);
+      }
       await fetch(`/qual-runs/${runId}/value`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -2427,8 +3028,17 @@
       runSaveTimers.set(
         key,
         setTimeout(() => {
-          const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
-          saveRunValue(runId, fieldId, value);
+          if (fieldType === 'tag') {
+            const tags = Array.from(
+              row.querySelectorAll(`input[data-field-id="${fieldId}"][data-tag-value]`)
+            )
+              .filter((input) => input.checked)
+              .map((input) => input.dataset.tagValue || '');
+            saveRunValue(runId, fieldId, tags);
+          } else {
+            const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
+            saveRunValue(runId, fieldId, value);
+          }
           runSaveTimers.delete(key);
         }, 300)
       );
@@ -2448,7 +3058,8 @@
     const makeCpwRunRow = (run) => {
       const extraFields = Array.from(document.querySelectorAll('th[data-extra-field]')).map((el) => ({
         id: el.dataset.fieldId,
-        type: el.dataset.fieldType
+        type: el.dataset.fieldType,
+        allowed: el.dataset.fieldAllowed
       }));
       const row = document.createElement('tr');
       row.setAttribute('data-run-row', '');
@@ -2467,6 +3078,37 @@
             }
             if (field.type === 'text') {
               return `<td><input type="text" data-field-id="${field.id}" data-field-type="text" value=""></td>`;
+            }
+            if (field.type === 'tag') {
+              const tags = (() => {
+                try {
+                  const parsed = JSON.parse(field.allowed || '[]');
+                  return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                  return [];
+                }
+              })();
+              return `<td>
+                <div class="tag-select" data-tag-select>
+                  <div class="tag-selected" data-tag-selected>
+                    <span class="tag-placeholder">Select...</span>
+                  </div>
+                  <div class="tag-panel" data-tag-panel>
+                    <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                    <div class="tag-options">
+                      ${tags
+                        .map(
+                          (tag) => `
+                        <label class="tag-option" data-tag-option data-tag-label="${tag}">
+                          <input type="checkbox" data-field-id="${field.id}" data-field-type="tag" data-tag-value="${tag}">
+                          <span class="tag-chip">${tag}</span>
+                        </label>`
+                        )
+                        .join('')}
+                    </div>
+                  </div>
+                </div>
+              </td>`;
             }
             return `<td><input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value=""></td>`;
           })
@@ -2728,6 +3370,497 @@
       });
       updateCpwChart();
     });
+  } else if (<%= step.step_number %> === 5) {
+    const gateSealSetupDialog = document.getElementById('gateSealSetupDialog');
+    const openGateSealSetup = document.getElementById('openGateSealSetup');
+    const gateSealInjSpeedInput = document.getElementById('gateSealInjSpeed');
+    const gateSealSetupStatus = document.getElementById('gateSealSetupStatus');
+    const gateSealInjSpeedValue = document.getElementById('gateSealInjSpeedValue');
+    const gateSealAddRunBtn = document.getElementById('gateSealAddRun');
+    const gateSealEstimate = document.getElementById('gateSealEstimate');
+    const fieldIdsEl = document.getElementById('gateSealFieldIds');
+    const holdFieldId = fieldIdsEl?.dataset.hold ? Number(fieldIdsEl.dataset.hold) : null;
+    const weightFieldId = fieldIdsEl?.dataset.weight ? Number(fieldIdsEl.dataset.weight) : null;
+
+    openGateSealSetup?.addEventListener('click', () => gateSealSetupDialog?.showModal());
+    gateSealSetupDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+      btn.addEventListener('click', () => gateSealSetupDialog.close());
+    });
+
+    let setupTimer = null;
+    const saveGateSealSettings = () => {
+      if (setupTimer) clearTimeout(setupTimer);
+      if (gateSealSetupStatus) gateSealSetupStatus.textContent = 'Saving...';
+      setupTimer = setTimeout(async () => {
+        const payload = new URLSearchParams();
+        payload.append('inj_speed', gateSealInjSpeedInput?.value ?? '');
+        await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+        if (gateSealInjSpeedValue) {
+          gateSealInjSpeedValue.textContent = gateSealInjSpeedInput?.value?.trim() || '-';
+        }
+        if (gateSealSetupStatus) gateSealSetupStatus.textContent = 'Saved';
+      }, 350);
+    };
+
+    gateSealInjSpeedInput?.addEventListener('input', saveGateSealSettings);
+
+    const parseNum = (value) => {
+      if (value == null) return NaN;
+      const text = String(value).trim();
+      if (!text) return NaN;
+      return parseFloat(text.replace(',', '.'));
+    };
+
+    const saveRunValue = async (runId, fieldId, value) => {
+      const payload = new URLSearchParams();
+      payload.append('field_id', fieldId);
+      if (Array.isArray(value)) {
+        value.forEach((item) => payload.append('value', item));
+      } else {
+        payload.append('value', value);
+      }
+      await fetch(`/qual-runs/${runId}/value`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+    };
+
+    const runSaveTimers = new Map();
+    const handleRunInput = (target) => {
+      const row = target.closest('[data-run-row]');
+      const runId = row?.dataset.runId;
+      const fieldIdRaw = target.getAttribute('data-field-id');
+      const fieldId = fieldIdRaw ? Number(fieldIdRaw) : NaN;
+      if (!runId || !Number.isFinite(fieldId)) return;
+      const fieldType = target.dataset.fieldType || (target.type === 'checkbox' ? 'boolean' : 'text');
+      const key = `${runId}:${fieldId}`;
+      if (runSaveTimers.has(key)) clearTimeout(runSaveTimers.get(key));
+      runSaveTimers.set(
+        key,
+        setTimeout(() => {
+          if (fieldType === 'tag') {
+            const tags = Array.from(
+              row.querySelectorAll(`input[data-field-id="${fieldId}"][data-tag-value]`)
+            )
+              .filter((input) => input.checked)
+              .map((input) => input.dataset.tagValue || '');
+            saveRunValue(runId, fieldId, tags);
+          } else {
+            const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
+            saveRunValue(runId, fieldId, value);
+          }
+          runSaveTimers.delete(key);
+        }, 300)
+      );
+    };
+
+    const formatNumberClient = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '-';
+      const rounded = Math.round(num * 100) / 100;
+      return rounded.toFixed(2).replace(/\.?0+$/, '');
+    };
+
+    const chart = echarts.init(document.getElementById('gateSealChart'));
+    chart.getZr().off('mousewheel');
+    chart.getZr().off('wheel');
+
+    const updateGateSealChart = () => {
+      const rows = Array.from(document.querySelectorAll('#gateSealTable [data-run-row]'));
+      const points = rows
+        .map((row) => {
+          const holdInput = holdFieldId ? row.querySelector(`[data-field-id="${holdFieldId}"]`) : null;
+          const weightInput = weightFieldId ? row.querySelector(`[data-field-id="${weightFieldId}"]`) : null;
+          const hold = parseNum(holdInput?.value);
+          const weight = parseNum(weightInput?.value);
+          return { hold, weight };
+        })
+        .filter((p) => Number.isFinite(p.hold) && Number.isFinite(p.weight));
+
+      points.sort((a, b) => a.hold - b.hold);
+      let gateSealTime = null;
+      const plateauTolerance = 0.05;
+      const maxWeight = points.length ? Math.max(...points.map((p) => p.weight)) : NaN;
+      if (Number.isFinite(maxWeight) && maxWeight > 0) {
+        const lowerBound = maxWeight * (1 - plateauTolerance);
+        for (let i = 0; i < points.length; i += 1) {
+          const tail = points.slice(i);
+          const allWithin = tail.every((p) => p.weight >= lowerBound && p.weight <= maxWeight * (1 + plateauTolerance));
+          if (allWithin) {
+            gateSealTime = points[i].hold;
+            break;
+          }
+        }
+      }
+
+      if (gateSealEstimate) {
+        gateSealEstimate.textContent = gateSealTime != null ? formatNumberClient(gateSealTime) : '-';
+      }
+
+      const series = [
+        {
+          type: 'line',
+          symbol: 'circle',
+          data: points.map((p) => [p.hold, p.weight]),
+          itemStyle: { color: '#4a86d4' }
+        }
+      ];
+      const markLine = gateSealTime != null
+        ? {
+            data: [{ xAxis: gateSealTime, name: 'Gate seal' }],
+            lineStyle: { color: '#d97a2b', type: 'dashed' },
+            label: { formatter: 'Gate seal' }
+          }
+        : undefined;
+
+      chart.setOption({
+        grid: { left: 60, right: 40, top: 28, bottom: 60, containLabel: true },
+        xAxis: { type: 'value', name: 'Hold time (s)' },
+        yAxis: { type: 'value', name: 'Part weight (g)' },
+        series,
+        markLine
+      });
+    };
+
+    const makeGateSealRunRow = (run) => {
+      const extraFields = Array.from(document.querySelectorAll('#gateSealTable th[data-extra-field]')).map((el) => ({
+        id: el.dataset.fieldId,
+        type: el.dataset.fieldType,
+        allowed: el.dataset.fieldAllowed
+      }));
+      const row = document.createElement('tr');
+      row.setAttribute('data-run-row', '');
+      row.dataset.runId = run.id;
+      row.innerHTML = `
+        <td><strong>${run.run_code}</strong></td>
+        <td><input type="number" step="any" data-field-id="${holdFieldId || ''}" data-field-type="number" value=""></td>
+        <td><input type="number" step="any" data-field-id="${weightFieldId || ''}" data-field-type="number" value=""></td>
+        ${extraFields
+          .map((field) => {
+            if (!field.id) return '<td></td>';
+            if (field.type === 'boolean') {
+              return `<td><input type="checkbox" data-field-id="${field.id}" data-field-type="boolean"></td>`;
+            }
+            if (field.type === 'text') {
+              return `<td><input type="text" data-field-id="${field.id}" data-field-type="text" value=""></td>`;
+            }
+            if (field.type === 'tag') {
+              const tags = (() => {
+                try {
+                  const parsed = JSON.parse(field.allowed || '[]');
+                  return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                  return [];
+                }
+              })();
+              return `<td>
+                <div class="tag-select" data-tag-select>
+                  <div class="tag-selected" data-tag-selected>
+                    <span class="tag-placeholder">Select...</span>
+                  </div>
+                  <div class="tag-panel" data-tag-panel>
+                    <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                    <div class="tag-options">
+                      ${tags
+                        .map(
+                          (tag) => `
+                        <label class="tag-option" data-tag-option data-tag-label="${tag}">
+                          <input type="checkbox" data-field-id="${field.id}" data-field-type="tag" data-tag-value="${tag}">
+                          <span class="tag-chip">${tag}</span>
+                        </label>`
+                        )
+                        .join('')}
+                    </div>
+                  </div>
+                </div>
+              </td>`;
+            }
+            return `<td><input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value=""></td>`;
+          })
+          .join('')}
+        <td>
+          <button class="icon-button danger" type="button" data-run-delete title="Delete row">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      return row;
+    };
+
+    const addGateSealRun = async () => {
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs`, {
+        method: 'POST'
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data?.run) return;
+      const tbody = document.querySelector('#gateSealTable tbody');
+      const emptyRow = tbody?.querySelector('tr td[colspan]');
+      if (emptyRow) emptyRow.parentElement.remove();
+      tbody?.appendChild(makeGateSealRunRow(data.run));
+      updateGateSealChart();
+    };
+
+    gateSealAddRunBtn?.addEventListener('click', addGateSealRun);
+
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('#gateSealTable [data-run-row]')) return;
+      handleRunInput(target);
+      updateGateSealChart();
+    });
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('#gateSealTable [data-run-row]')) return;
+      handleRunInput(target);
+      updateGateSealChart();
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('#gateSealTable [data-run-delete]');
+      if (!target) return;
+      const row = target.closest('[data-run-row]');
+      const runId = row?.dataset.runId;
+      if (!runId) return;
+      fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs/${runId}/delete`, {
+        method: 'POST'
+      }).then(() => {
+        row?.remove();
+        updateGateSealChart();
+      });
+    });
+
+    updateGateSealChart();
+  } else if (<%= step.step_number %> === 6) {
+    const coolingAddRunBtn = document.getElementById('coolingAddRun');
+    const coolingMinTime = document.getElementById('coolingMinTime');
+    const fieldIdsEl = document.getElementById('coolingFieldIds');
+    const coolingFieldId = fieldIdsEl?.dataset.cooling ? Number(fieldIdsEl.dataset.cooling) : null;
+    const cosmeticFieldId = fieldIdsEl?.dataset.cosmetic ? Number(fieldIdsEl.dataset.cosmetic) : null;
+    const criticalFieldId = fieldIdsEl?.dataset.critical ? Number(fieldIdsEl.dataset.critical) : null;
+
+    const parseNum = (value) => {
+      if (value == null) return NaN;
+      const text = String(value).trim();
+      if (!text) return NaN;
+      return parseFloat(text.replace(',', '.'));
+    };
+
+    const saveRunValue = async (runId, fieldId, value) => {
+      const payload = new URLSearchParams();
+      payload.append('field_id', fieldId);
+      if (Array.isArray(value)) {
+        value.forEach((item) => payload.append('value', item));
+      } else {
+        payload.append('value', value);
+      }
+      await fetch(`/qual-runs/${runId}/value`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+    };
+
+    const runSaveTimers = new Map();
+    const handleRunInput = (target) => {
+      const row = target.closest('[data-run-row]');
+      const runId = row?.dataset.runId;
+      const fieldIdRaw = target.getAttribute('data-field-id');
+      const fieldId = fieldIdRaw ? Number(fieldIdRaw) : NaN;
+      if (!runId || !Number.isFinite(fieldId)) return;
+      const fieldType = target.dataset.fieldType || (target.type === 'checkbox' ? 'boolean' : 'text');
+      const key = `${runId}:${fieldId}`;
+      if (runSaveTimers.has(key)) clearTimeout(runSaveTimers.get(key));
+      runSaveTimers.set(
+        key,
+        setTimeout(() => {
+          if (fieldType === 'tag') {
+            const tags = Array.from(
+              row.querySelectorAll(`input[data-field-id="${fieldId}"][data-tag-value]`)
+            )
+              .filter((input) => input.checked)
+              .map((input) => input.dataset.tagValue || '');
+            saveRunValue(runId, fieldId, tags);
+          } else {
+            const value = fieldType === 'boolean' ? (target.checked ? 1 : 0) : target.value;
+            saveRunValue(runId, fieldId, value);
+          }
+          runSaveTimers.delete(key);
+        }, 300)
+      );
+    };
+
+    const formatNumberClient = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return '-';
+      const rounded = Math.round(num * 100) / 100;
+      return rounded.toFixed(2).replace(/\.?0+$/, '');
+    };
+
+    const chart = echarts.init(document.getElementById('coolingChart'));
+    chart.getZr().off('mousewheel');
+    chart.getZr().off('wheel');
+
+    const updateCoolingChart = () => {
+      const rows = Array.from(document.querySelectorAll('#coolingTable [data-run-row]'));
+      const points = rows.map((row) => {
+        const coolingInput = coolingFieldId ? row.querySelector(`[data-field-id="${coolingFieldId}"]`) : null;
+        const cosmeticInput = cosmeticFieldId ? row.querySelector(`[data-field-id="${cosmeticFieldId}"]`) : null;
+        const criticalInput = criticalFieldId ? row.querySelector(`[data-field-id="${criticalFieldId}"]`) : null;
+        const cooling = parseNum(coolingInput?.value);
+        const cosmeticOk = cosmeticInput ? cosmeticInput.checked : false;
+        const critical = parseNum(criticalInput?.value);
+        return { cooling, cosmeticOk, critical };
+      }).filter((p) => Number.isFinite(p.cooling));
+
+      const okTimes = points
+        .filter((p) => p.cosmeticOk && Number.isFinite(p.cooling))
+        .map((p) => p.cooling);
+      const minCooling = okTimes.length ? Math.min(...okTimes) : null;
+      if (coolingMinTime) {
+        coolingMinTime.textContent = minCooling != null ? formatNumberClient(minCooling) : '-';
+      }
+
+      const criticalSeries = points
+        .filter((p) => Number.isFinite(p.critical))
+        .map((p) => [p.cooling, p.critical]);
+
+      chart.setOption({
+        grid: { left: 60, right: 50, top: 28, bottom: 60, containLabel: true },
+        xAxis: { type: 'value', name: 'Cooling time (s)' },
+        yAxis: { type: 'value', name: 'Critical dim (mm)' },
+        series: [
+          {
+            type: 'scatter',
+            name: 'Critical dim',
+            data: criticalSeries,
+            symbolSize: 8,
+            itemStyle: { color: '#4a86d4' },
+            yAxisIndex: 0
+          }
+        ]
+      });
+    };
+
+    const makeCoolingRunRow = (run) => {
+      const extraFields = Array.from(document.querySelectorAll('#coolingTable th[data-extra-field]')).map((el) => ({
+        id: el.dataset.fieldId,
+        type: el.dataset.fieldType,
+        allowed: el.dataset.fieldAllowed
+      }));
+      const row = document.createElement('tr');
+      row.setAttribute('data-run-row', '');
+      row.dataset.runId = run.id;
+      row.innerHTML = `
+        <td><strong>${run.run_code}</strong></td>
+        <td><input type="number" step="any" data-field-id="${coolingFieldId || ''}" data-field-type="number" value=""></td>
+        <td><input type="checkbox" data-field-id="${cosmeticFieldId || ''}" data-field-type="boolean"></td>
+        <td><input type="number" step="any" data-field-id="${criticalFieldId || ''}" data-field-type="number" value=""></td>
+        ${extraFields
+          .map((field) => {
+            if (!field.id) return '<td></td>';
+            if (field.type === 'boolean') {
+              return `<td><input type="checkbox" data-field-id="${field.id}" data-field-type="boolean"></td>`;
+            }
+            if (field.type === 'text') {
+              return `<td><input type="text" data-field-id="${field.id}" data-field-type="text" value=""></td>`;
+            }
+            if (field.type === 'tag') {
+              const tags = (() => {
+                try {
+                  const parsed = JSON.parse(field.allowed || '[]');
+                  return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                  return [];
+                }
+              })();
+              return `<td>
+                <div class="tag-select" data-tag-select>
+                  <div class="tag-selected" data-tag-selected>
+                    <span class="tag-placeholder">Select...</span>
+                  </div>
+                  <div class="tag-panel" data-tag-panel>
+                    <input class="tag-filter" data-tag-filter type="text" placeholder="Filter...">
+                    <div class="tag-options">
+                      ${tags
+                        .map(
+                          (tag) => `
+                        <label class="tag-option" data-tag-option data-tag-label="${tag}">
+                          <input type="checkbox" data-field-id="${field.id}" data-field-type="tag" data-tag-value="${tag}">
+                          <span class="tag-chip">${tag}</span>
+                        </label>`
+                        )
+                        .join('')}
+                    </div>
+                  </div>
+                </div>
+              </td>`;
+            }
+            return `<td><input type="number" step="any" data-field-id="${field.id}" data-field-type="number" value=""></td>`;
+          })
+          .join('')}
+        <td>
+          <button class="icon-button danger" type="button" data-run-delete title="Delete row">
+            <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+          </button>
+        </td>
+      `;
+      return row;
+    };
+
+    const addCoolingRun = async () => {
+      const resp = await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs`, {
+        method: 'POST'
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data?.run) return;
+      const tbody = document.querySelector('#coolingTable tbody');
+      const emptyRow = tbody?.querySelector('tr td[colspan]');
+      if (emptyRow) emptyRow.parentElement.remove();
+      tbody?.appendChild(makeCoolingRunRow(data.run));
+      updateCoolingChart();
+    };
+
+    coolingAddRunBtn?.addEventListener('click', addCoolingRun);
+
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('#coolingTable [data-run-row]')) return;
+      handleRunInput(target);
+      updateCoolingChart();
+    });
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest('#coolingTable [data-run-row]')) return;
+      handleRunInput(target);
+      updateCoolingChart();
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('#coolingTable [data-run-delete]');
+      if (!target) return;
+      const row = target.closest('[data-run-row]');
+      const runId = row?.dataset.runId;
+      if (!runId) return;
+      fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/runs/${runId}/delete`, {
+        method: 'POST'
+      }).then(() => {
+        row?.remove();
+        updateCoolingChart();
+      });
+    });
+
+    updateCoolingChart();
   }
 
   importBtn?.addEventListener('click', async () => {
@@ -2882,6 +4015,12 @@
     if (stepNumber === 4) {
       addCpwFieldColumn(data);
     }
+    if (stepNumber === 5) {
+      addGateSealFieldColumn(data);
+    }
+    if (stepNumber === 6) {
+      addCoolingFieldColumn(data);
+    }
   });
 
   customForm?.addEventListener('submit', async (event) => {
@@ -3010,7 +4149,8 @@
         code: payload.get('code'),
         label: payload.get('label'),
         field_type: payload.get('field_type'),
-        unit: payload.get('unit')
+        unit: payload.get('unit'),
+        allowed_values_json: payload.get('allowed_values_json')
       });
     }
     if (stepNumber === 4) {
@@ -3019,7 +4159,28 @@
         code: payload.get('code'),
         label: payload.get('label'),
         field_type: payload.get('field_type'),
-        unit: payload.get('unit')
+        unit: payload.get('unit'),
+        allowed_values_json: payload.get('allowed_values_json')
+      });
+    }
+    if (stepNumber === 5) {
+      addGateSealFieldColumn({
+        id: data.id,
+        code: payload.get('code'),
+        label: payload.get('label'),
+        field_type: payload.get('field_type'),
+        unit: payload.get('unit'),
+        allowed_values_json: payload.get('allowed_values_json')
+      });
+    }
+    if (stepNumber === 6) {
+      addCoolingFieldColumn({
+        id: data.id,
+        code: payload.get('code'),
+        label: payload.get('label'),
+        field_type: payload.get('field_type'),
+        unit: payload.get('unit'),
+        allowed_values_json: payload.get('allowed_values_json')
       });
     }
     customForm.reset();
@@ -3051,6 +4212,8 @@
       row?.remove();
       removeRheoFieldColumn(fieldId);
       removeCpwFieldColumn(fieldId);
+      removeGateSealFieldColumn(fieldId);
+      removeCoolingFieldColumn(fieldId);
     });
   });
 

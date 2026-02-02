@@ -98,7 +98,7 @@ export function createQualificationRouter(db: Db) {
       (row) => row.step_number === stepNumber
     );
     let step1Recommended = null as number | null;
-    if (stepNumber === 2 || stepNumber === 3 || stepNumber === 4) {
+    if (stepNumber >= 2) {
       const step1SettingsRaw = getQualStepSettings(db, experimentId, 1);
       if (step1SettingsRaw) {
         try {
@@ -109,6 +109,36 @@ export function createQualificationRouter(db: Db) {
         } catch {
           step1Recommended = null;
         }
+      }
+    }
+    const summaries = listQualSummaries(db, experimentId);
+    const step4Summary = summaries.find((row) => row.step_number === 4);
+    let step4CenterTemp = null as number | null;
+    let step4CenterPressure = null as number | null;
+    if (step4Summary?.summary_json) {
+      try {
+        const parsed = JSON.parse(step4Summary.summary_json);
+        if (Number.isFinite(parsed?.window_center_temp)) {
+          step4CenterTemp = Number(parsed.window_center_temp);
+        }
+        if (Number.isFinite(parsed?.window_center_pressure)) {
+          step4CenterPressure = Number(parsed.window_center_pressure);
+        }
+      } catch {
+        step4CenterTemp = null;
+        step4CenterPressure = null;
+      }
+    }
+    const step5Summary = summaries.find((row) => row.step_number === 5);
+    let step5GateSealTime = null as number | null;
+    if (step5Summary?.summary_json) {
+      try {
+        const parsed = JSON.parse(step5Summary.summary_json);
+        if (Number.isFinite(parsed?.gate_seal_time_s)) {
+          step5GateSealTime = Number(parsed.gate_seal_time_s);
+        }
+      } catch {
+        step5GateSealTime = null;
       }
     }
 
@@ -123,6 +153,9 @@ export function createQualificationRouter(db: Db) {
       runValueMap,
       settings,
       step1Recommended,
+      step4CenterTemp,
+      step4CenterPressure,
+      step5GateSealTime,
       summaryJson: summaryRow?.summary_json ?? null
     });
   });
