@@ -228,6 +228,37 @@ export function ensureQualificationDefaults(db: Db, experimentId: number) {
         );
       }
     }
+    if (step.step_number === 5) {
+      const existingSettings = getQualStepSettings(db, experimentId, step.step_number);
+      if (!existingSettings) {
+        upsertQualStepSettings(
+          db,
+          experimentId,
+          step.step_number,
+          JSON.stringify({
+            inj_speed: null,
+            melt_temp_c: null,
+            hold_pressure_bar: null
+          })
+        );
+      }
+    }
+    if (step.step_number === 6) {
+      const existingSettings = getQualStepSettings(db, experimentId, step.step_number);
+      if (!existingSettings) {
+        upsertQualStepSettings(
+          db,
+          experimentId,
+          step.step_number,
+          JSON.stringify({
+            inj_speed: null,
+            melt_temp_c: null,
+            hold_pressure_bar: null,
+            gate_seal_time_s: null
+          })
+        );
+      }
+    }
     if (step.step_number === 6) {
       const warpageField = fields.find((field) => field.code === "warpage_mm");
       if (warpageField && warpageField.is_enabled !== 0) {
@@ -693,14 +724,19 @@ function buildStepSummary(
     }>;
     points.sort((a, b) => a.hold - b.hold);
     let gateSeal: number | null = null;
-    for (let i = 1; i < points.length; i += 1) {
-      const prev = points[i - 1];
-      const curr = points[i];
-      if (!prev.weight) continue;
-      const delta = Math.abs(curr.weight - prev.weight) / prev.weight;
-      if (delta <= 0.01) {
-        gateSeal = curr.hold;
-        break;
+    const plateauTolerance = 0.05;
+    const maxWeight = points.length ? Math.max(...points.map((p) => p.weight)) : null;
+    if (maxWeight != null && maxWeight > 0) {
+      const lowerBound = maxWeight * (1 - plateauTolerance);
+      for (let i = 0; i < points.length; i += 1) {
+        const tail = points.slice(i);
+        const allWithin = tail.every(
+          (p) => p.weight >= lowerBound && p.weight <= maxWeight * (1 + plateauTolerance)
+        );
+        if (allWithin) {
+          gateSeal = points[i].hold;
+          break;
+        }
       }
     }
     summaries.gate_seal_time_s = gateSeal;

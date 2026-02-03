@@ -1,0 +1,189 @@
+<%- include('partials/head', { title: `IM Planner | Report ${report.experiment.id}` }) %>
+<%- include('partials/nav') %>
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <a class="back-link" href="/experiments/<%= report.experiment.id %>" aria-label="Back to experiment">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </a>
+      <div>
+        <h1 class="card-title">Experiment Report #<%= report.experiment.id %></h1>
+        <div class="small-note"><%- formatInline(report.experiment.name) %></div>
+      </div>
+    </div>
+    <div class="report-meta">
+      <div>
+        <div class="small-note">Executors</div>
+        <div><strong><%- formatInline(report.executors || '-') %></strong></div>
+      </div>
+      <div>
+        <div class="small-note">Machine</div>
+        <div><strong><%- formatInline(report.machineName || '-') %></strong></div>
+      </div>
+    </div>
+    <div class="report-description">
+      <div class="small-note">Description</div>
+      <div><%- formatInline(report.experiment.notes || '-') %></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Recipes</h2>
+    </div>
+    <% if (!report.recipes.length) { %>
+      <div class="small-note">No recipes linked.</div>
+    <% } else { %>
+      <div class="recipe-card-grid">
+        <% report.recipes.forEach((recipe) => { %>
+          <div class="recipe-card">
+            <div class="recipe-card-header">
+              <h3><%- formatInline(recipe.name) %></h3>
+            </div>
+            <% if (recipe.description) { %>
+              <div class="recipe-desc"><%- formatInline(recipe.description) %></div>
+            <% } %>
+            <div class="recipe-components">
+              <% (recipe.components || []).forEach((component) => { %>
+                <div class="recipe-comp-line">
+                  <span class="recipe-comp-name"><%- formatInline(component.component_name) %></span>
+                  <span class="recipe-comp-qty"><%= formatNumber(component.phr) %></span>
+                </div>
+              <% }); %>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+
+  <% if (options.includeQualification && report.qualification) { %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Recommended Settings</h2>
+      </div>
+      <div class="outputs-grid">
+        <div class="output-card">
+          <div class="small-note">Injection speed</div>
+          <div><strong><%= formatNumber(report.qualification.recommended_inj_speed) %></strong> cm3/s</div>
+        </div>
+        <div class="output-card">
+          <div class="small-note">Process window center</div>
+          <div><strong><%= formatNumber(report.qualification.window.center_temp) %></strong> °C</div>
+          <div><strong><%= formatNumber(report.qualification.window.center_pressure) %></strong> bar</div>
+        </div>
+        <div class="output-card">
+          <div class="small-note">Gate seal time</div>
+          <div><strong><%= formatNumber(report.qualification.gate_seal_time_s) %></strong> s</div>
+        </div>
+        <div class="output-card">
+          <div class="small-note">Min cooling time</div>
+          <div><strong><%= formatNumber(report.qualification.min_cooling_time_s) %></strong> s</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Qualification Charts</h2>
+      </div>
+      <div class="chart-card">
+        <div id="reportRheoChart" style="width: 100%; height: 320px;"></div>
+      </div>
+      <div class="chart-card" style="margin-top: 1rem;">
+        <div id="reportWindowChart" style="width: 100%; height: 320px;"></div>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (options.includeDoe && report.doe) { %>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">DOE Studies</h2>
+      </div>
+      <% if (!report.doe.length) { %>
+        <div class="small-note">No DOE studies.</div>
+      <% } else { %>
+        <div class="table-scroll">
+          <table class="pure-table table-compact">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Runs</th>
+                <th>Factors</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% report.doe.forEach((study) => { %>
+                <tr>
+                  <td><%= study.id %></td>
+                  <td><%- formatInline(study.name) %></td>
+                  <td><%= study.design_type %></td>
+                  <td><%= study.run_count %></td>
+                  <td>
+                    <% study.factors.forEach((factor) => { %>
+                      <div class="small-note"><strong><%- formatInline(factor.code) %></strong> <%= factor.mode %> <%= factor.values %></div>
+                    <% }); %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  <% } %>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Downloads</h2>
+    </div>
+    <div class="section-actions">
+      <a class="pure-button" href="/experiments/<%= report.experiment.id %>/report.csv?section=qualification">qualification.csv</a>
+      <a class="pure-button" href="/experiments/<%= report.experiment.id %>/report.csv?section=doe">doe.csv</a>
+      <a class="pure-button" href="/experiments/<%= report.experiment.id %>/report.csv?section=outputs">outputs.csv</a>
+    </div>
+  </div>
+</div>
+
+<% if (options.includeQualification && report.qualification) { %>
+  <script src="/vendor/echarts/dist/echarts.min.js"></script>
+  <script>
+    const rheoData = <%- JSON.stringify(report.qualification.charts.rheology) %>;
+    const windowData = <%- JSON.stringify(report.qualification.charts.processWindow) %>;
+    const rheoChart = echarts.init(document.getElementById('reportRheoChart'));
+    const windowChart = echarts.init(document.getElementById('reportWindowChart'));
+    const rheoSeries = rheoData
+      .filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
+      .map((p) => [p.x, p.y]);
+    rheoChart.setOption({
+      grid: { left: 60, right: 40, top: 20, bottom: 60, containLabel: true },
+      xAxis: { type: 'value', name: 'Injection speed (cm3/s)' },
+      yAxis: { type: 'value', name: 'Relative viscosity' },
+      series: [{ type: 'line', symbol: 'circle', data: rheoSeries }]
+    });
+    const good = windowData.good || [];
+    const defect = windowData.defect || [];
+    const windowPoly = windowData.window || [];
+    const center = windowData.center ? [windowData.center] : [];
+    const windowSeries = [
+      { type: 'scatter', data: good, symbolSize: 8, itemStyle: { color: '#2f8f5b' } },
+      { type: 'scatter', data: defect, symbolSize: 8, itemStyle: { color: '#d45f5f' } }
+    ];
+    if (windowPoly.length) {
+      windowSeries.push({ type: 'line', data: windowPoly, lineStyle: { color: '#4a86d4' }, areaStyle: { color: 'rgba(74, 134, 212, 0.1)' } });
+    }
+    if (center.length) {
+      windowSeries.push({ type: 'scatter', data: center, symbolSize: 10, itemStyle: { color: '#d97a2b' } });
+    }
+    windowChart.setOption({
+      grid: { left: 60, right: 40, top: 20, bottom: 60, containLabel: true },
+      xAxis: { type: 'value', name: 'Temperature (°C)' },
+      yAxis: { type: 'value', name: 'Hold pressure (bar)' },
+      series: windowSeries
+    });
+  </script>
+<% } %>
+<%- include('partials/foot') %>

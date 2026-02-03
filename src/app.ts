@@ -8,6 +8,7 @@ import { createExperimentsRouter } from "./routes/experiments.js";
 import { createRunsRouter } from "./routes/runs.js";
 import { createQualificationRouter } from "./routes/qualification.js";
 import { createMachinesRouter } from "./routes/machines.js";
+import { createReportRouter } from "./routes/report.js";
 
 const app = express();
 const db = openDb();
@@ -72,6 +73,7 @@ app.use(createExperimentsRouter(db));
 app.use(createRunsRouter(db));
 app.use(createQualificationRouter(db));
 app.use(createMachinesRouter(db));
+app.use(createReportRouter(db));
 
 app.use((_req, res) => {
   res.status(404).send("Not found");

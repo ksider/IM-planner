@@ -90,6 +90,8 @@ export function createQualificationRouter(db: Db) {
       inj_speed: null as number | string | null,
       target_weight_g: null as number | string | null,
       machine_max_pressure_bar: null as number | string | null,
+      hold_pressure_bar: null as number | string | null,
+      gate_seal_time_s: null as number | string | null,
       custom_fields: [] as Array<{ id: string; code?: string; label: string; unit?: string; value?: number | string | null }>
     };
     if (settingsJson) {
@@ -824,6 +826,8 @@ export function createQualificationRouter(db: Db) {
       inj_speed: parseSettingValue(req.body.inj_speed),
       target_weight_g: parseSettingValue(req.body.target_weight_g),
       machine_max_pressure_bar: parseSettingValue(req.body.machine_max_pressure_bar),
+      hold_pressure_bar: parseSettingValue(req.body.hold_pressure_bar),
+      gate_seal_time_s: parseSettingValue(req.body.gate_seal_time_s),
       cpw_temp_low_c: parseSettingValue(req.body.cpw_temp_low_c),
       cpw_temp_high_c: parseSettingValue(req.body.cpw_temp_high_c),
       cpw_hold_low_bar: parseSettingValue(req.body.cpw_hold_low_bar),

@@ -708,11 +708,11 @@
         </div>
         <div>
           <div class="small-note">Melt temperature</div>
-          <div class="setup-value"><%= step4CenterTemp ?? '-' %> <span class="small-note">&deg;C</span></div>
+          <div class="setup-value"><span id="gateSealMeltTempValue"><%= settings.melt_temp_c ?? step4CenterTemp ?? '-' %></span> <span class="small-note">&deg;C</span></div>
         </div>
         <div>
           <div class="small-note">Hold pressure</div>
-          <div class="setup-value"><%= step4CenterPressure ?? '-' %> <span class="small-note">bar</span></div>
+          <div class="setup-value"><span id="gateSealHoldPressureValue"><%= settings.hold_pressure_bar ?? step4CenterPressure ?? '-' %></span> <span class="small-note">bar</span></div>
         </div>
       </div>
     </div>
@@ -834,6 +834,16 @@
             <input type="text" id="gateSealInjSpeed" data-template-input value="<%= settings.inj_speed ?? step1Recommended ?? '' %>">
             <div class="template-preview" data-template-preview></div>
           </div>
+          <div>
+            <label>Melt temperature (°C)</label>
+            <input type="text" id="gateSealMeltTemp" data-template-input value="<%= settings.melt_temp_c ?? step4CenterTemp ?? '' %>">
+            <div class="template-preview" data-template-preview></div>
+          </div>
+          <div>
+            <label>Hold pressure (bar)</label>
+            <input type="text" id="gateSealHoldPressure" data-template-input value="<%= settings.hold_pressure_bar ?? step4CenterPressure ?? '' %>">
+            <div class="template-preview" data-template-preview></div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -846,23 +856,26 @@
     <div class="card">
       <div class="card-header">
         <h2 class="card-title">Setup</h2>
+        <div class="setup-actions">
+          <button class="pure-button pure-button-secondary" type="button" id="openCoolingSetup">Edit setup</button>
+        </div>
       </div>
       <div class="setup-summary">
         <div>
           <div class="small-note">Injection speed</div>
-          <div class="setup-value"><%= step1Recommended ?? '-' %> <span class="small-note">cm3/s</span></div>
+          <div class="setup-value"><span id="coolingInjSpeedValue"><%= settings.inj_speed ?? step1Recommended ?? '-' %></span> <span class="small-note">cm3/s</span></div>
         </div>
         <div>
           <div class="small-note">Melt temperature</div>
-          <div class="setup-value"><%= step4CenterTemp ?? '-' %> <span class="small-note">&deg;C</span></div>
+          <div class="setup-value"><span id="coolingMeltTempValue"><%= settings.melt_temp_c ?? step4CenterTemp ?? '-' %></span> <span class="small-note">&deg;C</span></div>
         </div>
         <div>
           <div class="small-note">Hold pressure</div>
-          <div class="setup-value"><%= step4CenterPressure ?? '-' %> <span class="small-note">bar</span></div>
+          <div class="setup-value"><span id="coolingHoldPressureValue"><%= settings.hold_pressure_bar ?? step4CenterPressure ?? '-' %></span> <span class="small-note">bar</span></div>
         </div>
         <div>
           <div class="small-note">Gate seal time</div>
-          <div class="setup-value"><%= step5GateSealTime ?? '-' %> <span class="small-note">s</span></div>
+          <div class="setup-value"><span id="coolingGateSealValue"><%= settings.gate_seal_time_s ?? step5GateSealTime ?? '-' %></span> <span class="small-note">s</span></div>
         </div>
       </div>
     </div>
@@ -975,6 +988,41 @@
         </div>
       </div>
     </div>
+
+    <dialog class="modal-frame" id="coolingSetupDialog">
+      <div class="modal-header">
+        <strong>Cooling setup</strong>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid-two">
+          <div>
+            <label>Injection speed</label>
+            <input type="text" id="coolingInjSpeed" data-template-input value="<%= settings.inj_speed ?? step1Recommended ?? '' %>">
+            <div class="template-preview" data-template-preview></div>
+          </div>
+          <div>
+            <label>Melt temperature (°C)</label>
+            <input type="text" id="coolingMeltTemp" data-template-input value="<%= settings.melt_temp_c ?? step4CenterTemp ?? '' %>">
+            <div class="template-preview" data-template-preview></div>
+          </div>
+          <div>
+            <label>Hold pressure (bar)</label>
+            <input type="text" id="coolingHoldPressure" data-template-input value="<%= settings.hold_pressure_bar ?? step4CenterPressure ?? '' %>">
+            <div class="template-preview" data-template-preview></div>
+          </div>
+          <div>
+            <label>Gate seal time (s)</label>
+            <input type="text" id="coolingGateSeal" data-template-input value="<%= settings.gate_seal_time_s ?? step5GateSealTime ?? '' %>">
+            <div class="template-preview" data-template-preview></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="save-status" id="coolingSetupStatus">Saved</span>
+        <button class="pure-button" type="button" data-close>Close</button>
+      </div>
+    </dialog>
   <% } else { %>
     <div class="card">
       <h2 class="card-title">Runs</h2>
@@ -3465,8 +3513,12 @@
     const gateSealSetupDialog = document.getElementById('gateSealSetupDialog');
     const openGateSealSetup = document.getElementById('openGateSealSetup');
     const gateSealInjSpeedInput = document.getElementById('gateSealInjSpeed');
+    const gateSealMeltTempInput = document.getElementById('gateSealMeltTemp');
+    const gateSealHoldPressureInput = document.getElementById('gateSealHoldPressure');
     const gateSealSetupStatus = document.getElementById('gateSealSetupStatus');
     const gateSealInjSpeedValue = document.getElementById('gateSealInjSpeedValue');
+    const gateSealMeltTempValue = document.getElementById('gateSealMeltTempValue');
+    const gateSealHoldPressureValue = document.getElementById('gateSealHoldPressureValue');
     const gateSealAddRunBtn = document.getElementById('gateSealAddRun');
     const gateSealEstimate = document.getElementById('gateSealEstimate');
     const fieldIdsEl = document.getElementById('gateSealFieldIds');
@@ -3485,6 +3537,8 @@
       setupTimer = setTimeout(async () => {
         const payload = new URLSearchParams();
         payload.append('inj_speed', gateSealInjSpeedInput?.value ?? '');
+        payload.append('melt_temp_c', gateSealMeltTempInput?.value ?? '');
+        payload.append('hold_pressure_bar', gateSealHoldPressureInput?.value ?? '');
         await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -3494,19 +3548,45 @@
           const display = resolveTemplateValue(gateSealInjSpeedInput?.value ?? '').trim();
           gateSealInjSpeedValue.textContent = display || '-';
         }
+        if (gateSealMeltTempValue) {
+          const display = resolveTemplateValue(gateSealMeltTempInput?.value ?? '').trim();
+          gateSealMeltTempValue.textContent = display || '-';
+        }
+        if (gateSealHoldPressureValue) {
+          const display = resolveTemplateValue(gateSealHoldPressureInput?.value ?? '').trim();
+          gateSealHoldPressureValue.textContent = display || '-';
+        }
         if (gateSealSetupStatus) gateSealSetupStatus.textContent = 'Saved';
       }, 350);
     };
 
     gateSealInjSpeedInput?.addEventListener('input', saveGateSealSettings);
+    gateSealMeltTempInput?.addEventListener('input', saveGateSealSettings);
+    gateSealHoldPressureInput?.addEventListener('input', saveGateSealSettings);
     if (gateSealInjSpeedValue) {
       const display = resolveTemplateValue(gateSealInjSpeedInput?.value ?? '').trim();
       gateSealInjSpeedValue.textContent = display || '-';
+    }
+    if (gateSealMeltTempValue) {
+      const display = resolveTemplateValue(gateSealMeltTempInput?.value ?? '').trim();
+      gateSealMeltTempValue.textContent = display || '-';
+    }
+    if (gateSealHoldPressureValue) {
+      const display = resolveTemplateValue(gateSealHoldPressureInput?.value ?? '').trim();
+      gateSealHoldPressureValue.textContent = display || '-';
     }
     document.addEventListener('templateMapReady', () => {
       if (gateSealInjSpeedValue) {
         const display = resolveTemplateValue(gateSealInjSpeedInput?.value ?? '').trim();
         gateSealInjSpeedValue.textContent = display || '-';
+      }
+      if (gateSealMeltTempValue) {
+        const display = resolveTemplateValue(gateSealMeltTempInput?.value ?? '').trim();
+        gateSealMeltTempValue.textContent = display || '-';
+      }
+      if (gateSealHoldPressureValue) {
+        const display = resolveTemplateValue(gateSealHoldPressureInput?.value ?? '').trim();
+        gateSealHoldPressureValue.textContent = display || '-';
       }
     });
 
@@ -3741,12 +3821,102 @@
 
     updateGateSealChart();
   } else if (<%= step.step_number %> === 6) {
+    const coolingSetupDialog = document.getElementById('coolingSetupDialog');
+    const openCoolingSetup = document.getElementById('openCoolingSetup');
+    const coolingInjSpeedInput = document.getElementById('coolingInjSpeed');
+    const coolingMeltTempInput = document.getElementById('coolingMeltTemp');
+    const coolingHoldPressureInput = document.getElementById('coolingHoldPressure');
+    const coolingGateSealInput = document.getElementById('coolingGateSeal');
+    const coolingSetupStatus = document.getElementById('coolingSetupStatus');
+    const coolingInjSpeedValue = document.getElementById('coolingInjSpeedValue');
+    const coolingMeltTempValue = document.getElementById('coolingMeltTempValue');
+    const coolingHoldPressureValue = document.getElementById('coolingHoldPressureValue');
+    const coolingGateSealValue = document.getElementById('coolingGateSealValue');
     const coolingAddRunBtn = document.getElementById('coolingAddRun');
     const coolingMinTime = document.getElementById('coolingMinTime');
     const fieldIdsEl = document.getElementById('coolingFieldIds');
     const coolingFieldId = fieldIdsEl?.dataset.cooling ? Number(fieldIdsEl.dataset.cooling) : null;
     const cosmeticFieldId = fieldIdsEl?.dataset.cosmetic ? Number(fieldIdsEl.dataset.cosmetic) : null;
     const criticalFieldId = fieldIdsEl?.dataset.critical ? Number(fieldIdsEl.dataset.critical) : null;
+
+    openCoolingSetup?.addEventListener('click', () => coolingSetupDialog?.showModal());
+    coolingSetupDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+      btn.addEventListener('click', () => coolingSetupDialog.close());
+    });
+
+    let setupTimer = null;
+    const saveCoolingSettings = () => {
+      if (setupTimer) clearTimeout(setupTimer);
+      if (coolingSetupStatus) coolingSetupStatus.textContent = 'Saving...';
+      setupTimer = setTimeout(async () => {
+        const payload = new URLSearchParams();
+        payload.append('inj_speed', coolingInjSpeedInput?.value ?? '');
+        payload.append('melt_temp_c', coolingMeltTempInput?.value ?? '');
+        payload.append('hold_pressure_bar', coolingHoldPressureInput?.value ?? '');
+        payload.append('gate_seal_time_s', coolingGateSealInput?.value ?? '');
+        await fetch(`/experiments/<%= experimentId %>/qualification/<%= step.step_number %>/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+        if (coolingInjSpeedValue) {
+          const display = resolveTemplateValue(coolingInjSpeedInput?.value ?? '').trim();
+          coolingInjSpeedValue.textContent = display || '-';
+        }
+        if (coolingMeltTempValue) {
+          const display = resolveTemplateValue(coolingMeltTempInput?.value ?? '').trim();
+          coolingMeltTempValue.textContent = display || '-';
+        }
+        if (coolingHoldPressureValue) {
+          const display = resolveTemplateValue(coolingHoldPressureInput?.value ?? '').trim();
+          coolingHoldPressureValue.textContent = display || '-';
+        }
+        if (coolingGateSealValue) {
+          const display = resolveTemplateValue(coolingGateSealInput?.value ?? '').trim();
+          coolingGateSealValue.textContent = display || '-';
+        }
+        if (coolingSetupStatus) coolingSetupStatus.textContent = 'Saved';
+      }, 350);
+    };
+
+    coolingInjSpeedInput?.addEventListener('input', saveCoolingSettings);
+    coolingMeltTempInput?.addEventListener('input', saveCoolingSettings);
+    coolingHoldPressureInput?.addEventListener('input', saveCoolingSettings);
+    coolingGateSealInput?.addEventListener('input', saveCoolingSettings);
+    if (coolingInjSpeedValue) {
+      const display = resolveTemplateValue(coolingInjSpeedInput?.value ?? '').trim();
+      coolingInjSpeedValue.textContent = display || '-';
+    }
+    if (coolingMeltTempValue) {
+      const display = resolveTemplateValue(coolingMeltTempInput?.value ?? '').trim();
+      coolingMeltTempValue.textContent = display || '-';
+    }
+    if (coolingHoldPressureValue) {
+      const display = resolveTemplateValue(coolingHoldPressureInput?.value ?? '').trim();
+      coolingHoldPressureValue.textContent = display || '-';
+    }
+    if (coolingGateSealValue) {
+      const display = resolveTemplateValue(coolingGateSealInput?.value ?? '').trim();
+      coolingGateSealValue.textContent = display || '-';
+    }
+    document.addEventListener('templateMapReady', () => {
+      if (coolingInjSpeedValue) {
+        const display = resolveTemplateValue(coolingInjSpeedInput?.value ?? '').trim();
+        coolingInjSpeedValue.textContent = display || '-';
+      }
+      if (coolingMeltTempValue) {
+        const display = resolveTemplateValue(coolingMeltTempInput?.value ?? '').trim();
+        coolingMeltTempValue.textContent = display || '-';
+      }
+      if (coolingHoldPressureValue) {
+        const display = resolveTemplateValue(coolingHoldPressureInput?.value ?? '').trim();
+        coolingHoldPressureValue.textContent = display || '-';
+      }
+      if (coolingGateSealValue) {
+        const display = resolveTemplateValue(coolingGateSealInput?.value ?? '').trim();
+        coolingGateSealValue.textContent = display || '-';
+      }
+    });
 
     const parseNum = (value) => {
       if (value == null) return NaN;

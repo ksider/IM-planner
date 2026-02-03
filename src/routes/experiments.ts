@@ -20,6 +20,7 @@ import {
 import { getMachine, listMachines } from "../repos/machines_repo.js";
 import { createDoeStudy, deleteDoeStudy, getDoeStudy, listDoeStudies } from "../repos/doe_repo.js";
 import { listQualSummaries } from "../repos/qual_repo.js";
+import { createReportConfig, listReportConfigs, updateReportConfig, getReportConfig } from "../repos/reports_repo.js";
 import {
   listParamDefinitions,
   listParamDefinitionsByKind,
@@ -91,14 +92,26 @@ export function createExperimentsRouter(db: Db) {
     const recipeIds = getExperimentRecipes(db, experimentId);
     const recipeNameById = new Map(listRecipes(db).map((recipe) => [recipe.id, recipe.name]));
     const recipeNames = recipeIds.map((id) => recipeNameById.get(id)).filter(Boolean);
+    const reports = listReportConfigs(db, experimentId);
     res.render("experiment_detail", {
       experiment,
       qualSummaries,
       doeStudies,
       machines,
       selectedMachine,
-      recipeNames
+      recipeNames,
+      reports
     });
+  });
+
+  router.get("/experiments/:id/doe-studies.json", (req, res) => {
+    const experimentId = Number(req.params.id);
+    const list = listDoeStudies(db, experimentId);
+    res.json(list.map((study) => ({
+      id: study.id,
+      name: study.name,
+      design_type: study.design_type
+    })));
   });
 
   router.post("/experiments/:id/doe", (req, res) => {
@@ -123,6 +136,61 @@ export function createExperimentsRouter(db: Db) {
       recipe_as_block: recipeAsBlock
     });
     res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design`);
+  });
+
+  router.post("/experiments/:id/reports", (req, res) => {
+    const experimentId = Number(req.params.id);
+    const nameRaw = String(req.body.name || "").trim();
+    const executors = String(req.body.executors || "").trim() || null;
+    const include = Array.isArray(req.body.include)
+      ? req.body.include.map((val: string) => String(val))
+      : req.body.include
+        ? [String(req.body.include)]
+        : [];
+    const doeIds = Array.isArray(req.body.doe_ids)
+      ? req.body.doe_ids.map((val: string) => Number(val)).filter((val) => Number.isFinite(val))
+      : req.body.doe_ids
+        ? [Number(req.body.doe_ids)].filter((val) => Number.isFinite(val))
+        : [];
+    const existing = listReportConfigs(db, experimentId);
+    const name = nameRaw || `Report ${existing.length + 1}`;
+    const reportId = createReportConfig(db, {
+      experiment_id: experimentId,
+      name,
+      executors,
+      include_json: include.length ? JSON.stringify(include) : JSON.stringify([]),
+      doe_ids_json: doeIds.length ? JSON.stringify(doeIds) : JSON.stringify([])
+    });
+    res.json({ id: reportId, url: `/reports/${reportId}` });
+  });
+
+  router.post("/experiments/:id/reports/:reportId", (req, res) => {
+    const experimentId = Number(req.params.id);
+    const reportId = Number(req.params.reportId);
+    const existing = getReportConfig(db, reportId);
+    if (!existing || existing.experiment_id !== experimentId) {
+      return res.status(404).send("Report not found");
+    }
+    const nameRaw = String(req.body.name || "").trim();
+    const executors = String(req.body.executors || "").trim() || null;
+    const include = Array.isArray(req.body.include)
+      ? req.body.include.map((val: string) => String(val))
+      : req.body.include
+        ? [String(req.body.include)]
+        : [];
+    const doeIds = Array.isArray(req.body.doe_ids)
+      ? req.body.doe_ids.map((val: string) => Number(val)).filter((val) => Number.isFinite(val))
+      : req.body.doe_ids
+        ? [Number(req.body.doe_ids)].filter((val) => Number.isFinite(val))
+        : [];
+    const name = nameRaw || existing.name;
+    updateReportConfig(db, reportId, {
+      name,
+      executors,
+      include_json: include.length ? JSON.stringify(include) : JSON.stringify([]),
+      doe_ids_json: doeIds.length ? JSON.stringify(doeIds) : JSON.stringify([])
+    });
+    res.json({ id: reportId, url: `/reports/${reportId}` });
   });
 
   router.post("/experiments/:id/doe/:doeId/clone", (req, res) => {
