@@ -4,8 +4,8 @@
       <img src="src/public/logo.svg" width="96" height="96" alt="IM Planner logo" />
     </td>
     <td>
-      <h1>IM-DOE Planner</h1>
-      <p>Local, offline-first DOE planner for injection molding.</p>
+      <h1>Injection Molding Planner</h1>
+      <p>Local, offline planner for injection molding.</p>
       <p><strong>Stack:</strong></p>
       <p>
         <img src="https://img.shields.io/badge/Node.js-20.x-1f6feb?style=flat&logo=node.js&logoColor=white" alt="Node.js" />
