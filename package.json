@@ -9,6 +9,12 @@
     "start": "node dist/app.js"
   },
   "dependencies": {
+    "@editorjs/delimiter": "^1.4.2",
+    "@editorjs/editorjs": "^2.31.1",
+    "@editorjs/header": "^2.8.8",
+    "@editorjs/list": "^2.0.9",
+    "@editorjs/simple-image": "^1.6.0",
+    "@editorjs/table": "^2.4.5",
     "better-sqlite3": "^11.10.0",
     "echarts": "^5.5.0",
     "echarts-gl": "^2.0.9",

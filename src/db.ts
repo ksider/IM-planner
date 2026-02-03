@@ -180,6 +180,13 @@ function initDb(db: Db) {
       created_at TEXT NOT NULL,
       FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS report_documents (
+      report_id INTEGER PRIMARY KEY,
+      content_json TEXT NOT NULL,
+      html_snapshot TEXT,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (report_id) REFERENCES report_configs(id) ON DELETE CASCADE
+    );
     CREATE TABLE IF NOT EXISTS qual_steps (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       experiment_id INTEGER NOT NULL,

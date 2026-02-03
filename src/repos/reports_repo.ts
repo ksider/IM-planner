@@ -60,4 +60,36 @@ export function updateReportConfig(
   ).run(data.name, data.executors, data.include_json, data.doe_ids_json, reportId);
 }
 
+type ReportDocumentRow = {
+  report_id: number;
+  content_json: string;
+  html_snapshot: string | null;
+  updated_at: string;
+};
+
+export function getReportDocument(db: Db, reportId: number): ReportDocumentRow | null {
+  const row = db
+    .prepare("SELECT * FROM report_documents WHERE report_id = ?")
+    .get(reportId) as ReportDocumentRow | undefined;
+  return row ?? null;
+}
+
+export function upsertReportDocument(
+  db: Db,
+  reportId: number,
+  contentJson: string,
+  htmlSnapshot: string | null
+) {
+  db.prepare(
+    `
+    INSERT INTO report_documents (report_id, content_json, html_snapshot, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(report_id) DO UPDATE SET
+      content_json = excluded.content_json,
+      html_snapshot = excluded.html_snapshot,
+      updated_at = excluded.updated_at
+    `
+  ).run(reportId, contentJson, htmlSnapshot);
+}
+
 export type { ReportConfigRow };

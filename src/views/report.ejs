@@ -10,6 +10,11 @@
         <h1 class="card-title">Experiment Report #<%= report.experiment.id %></h1>
         <div class="small-note"><%- formatInline(report.experiment.name) %></div>
       </div>
+      <% if (typeof reportConfig !== 'undefined' && reportConfig) { %>
+        <div class="section-actions">
+          <a class="pure-button pure-button-secondary" href="/reports/<%= reportConfig.id %>/editor">Edit Report</a>
+        </div>
+      <% } %>
     </div>
     <div class="report-meta">
       <div>

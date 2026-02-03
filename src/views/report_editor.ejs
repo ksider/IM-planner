@@ -1,0 +1,183 @@
+<%- include('partials/head', { title: `IM Planner | Report Editor ${report.experiment.id}` }) %>
+<%- include('partials/nav') %>
+<div class="container">
+  <div class="card">
+    <div class="card-header">
+      <a class="back-link" href="/reports/<%= reportConfig.id %>" aria-label="Back to report">
+        <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
+      </a>
+      <div>
+        <h1 class="card-title"><%- formatInline(reportConfig.name) %></h1>
+        <div class="small-note">Editable report document</div>
+      </div>
+      <div class="section-actions">
+        <button class="pure-button pure-button-secondary" type="button" id="printReport">Export PDF</button>
+        <button class="pure-button pure-button-primary" type="button" id="saveReport">Save</button>
+      </div>
+    </div>
+    <div id="editorjs" class="editor-surface"></div>
+    <div class="save-status small-note" id="saveStatus"></div>
+  </div>
+</div>
+
+<script src="/vendor/@editorjs/editorjs/dist/editorjs.umd.js"></script>
+<script src="/vendor/@editorjs/header/dist/header.umd.js"></script>
+<script src="/vendor/@editorjs/list/dist/editorjs-list.umd.js"></script>
+<script src="/vendor/@editorjs/table/dist/table.umd.js"></script>
+<script src="/vendor/@editorjs/simple-image/dist/simple-image.umd.js"></script>
+<script src="/vendor/@editorjs/delimiter/dist/delimiter.umd.js"></script>
+<script src="/vendor/echarts/dist/echarts.min.js"></script>
+
+<script>
+  // Seed data is produced on the server from the report content. This keeps the
+  // editor structure stable and predictable.
+  const editorData = <%- JSON.stringify(editorData) %>;
+  const hasSavedDoc = <%= hasSavedDoc ? 'true' : 'false' %>;
+  const rheoData = <%- JSON.stringify(report.qualification?.charts.rheology || []) %>;
+  const windowData = <%- JSON.stringify(report.qualification?.charts.processWindow || {}) %>;
+
+  const ListTool = window.EditorjsList || window.List;
+
+  const editor = new EditorJS({
+    holder: 'editorjs',
+    data: editorData,
+    tools: {
+      header: {
+        class: Header,
+        inlineToolbar: true
+      },
+      list: {
+        class: ListTool,
+        inlineToolbar: true
+      },
+      table: {
+        class: Table,
+        inlineToolbar: true,
+        config: {
+          rows: 2,
+          cols: 2
+        }
+      },
+      image: {
+        class: SimpleImage,
+        inlineToolbar: true
+      },
+      delimiter: {
+        class: window.Delimiter || window.EditorjsDelimiter
+      }
+    }
+  });
+
+  const renderChartImage = (containerId, buildOption) => {
+    const container = document.createElement('div');
+    container.style.width = '640px';
+    container.style.height = '360px';
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.visibility = 'hidden';
+    document.body.appendChild(container);
+    const chart = echarts.init(container, null, { renderer: 'canvas' });
+    chart.setOption(buildOption());
+    chart.resize();
+    const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#ffffff' });
+    chart.dispose();
+    document.body.removeChild(container);
+    return url;
+  };
+
+  const updateImageAfterHeader = async (headerText, imageUrl, captionText) => {
+    const data = await editor.save();
+    const headerIndex = data.blocks.findIndex(
+      (block) => block.type === 'header' && String(block.data?.text || '').includes(headerText)
+    );
+    if (headerIndex === -1) return;
+    for (let i = headerIndex + 1; i < data.blocks.length; i += 1) {
+      const block = data.blocks[i];
+      if (block.type === 'image') {
+        const current = editor.blocks.getBlockByIndex(i);
+        if (current?.id) {
+          await editor.blocks.update(current.id, { url: imageUrl, caption: '' });
+        }
+        // Ensure caption lives as a native paragraph block below the image.
+        const next = editor.blocks.getBlockByIndex(i + 1);
+        if (!next || next.name !== 'paragraph') {
+          await editor.blocks.insert('paragraph', { text: captionText }, {}, i + 1);
+        }
+        return;
+      }
+      if (block.type === 'header') break;
+    }
+    await editor.blocks.insert('image', { url: imageUrl, caption: '' }, {}, headerIndex + 1);
+    await editor.blocks.insert('paragraph', { text: captionText }, {}, headerIndex + 2);
+  };
+
+  const buildRheoOption = () => {
+    const series = rheoData
+      .filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
+      .map((p) => [p.x, p.y]);
+    return {
+      grid: { left: 60, right: 40, top: 30, bottom: 60, containLabel: true },
+      xAxis: { type: 'value', name: 'Injection speed (cm3/s)' },
+      yAxis: { type: 'value', name: 'Relative viscosity' },
+      series: [{ type: 'line', symbol: 'circle', data: series }]
+    };
+  };
+
+  const buildWindowOption = () => {
+    const good = windowData.good || [];
+    const defect = windowData.defect || [];
+    const windowPoly = windowData.window || [];
+    const center = windowData.center ? [windowData.center] : [];
+    const series = [
+      { type: 'scatter', data: good, symbolSize: 8, itemStyle: { color: '#2f8f5b' } },
+      { type: 'scatter', data: defect, symbolSize: 8, itemStyle: { color: '#d45f5f' } }
+    ];
+    if (windowPoly.length) {
+      series.push({
+        type: 'line',
+        data: windowPoly,
+        lineStyle: { color: '#4a86d4' },
+        areaStyle: { color: 'rgba(74, 134, 212, 0.12)' }
+      });
+    }
+    if (center.length) {
+      series.push({ type: 'scatter', data: center, symbolSize: 10, itemStyle: { color: '#d97a2b' } });
+    }
+    return {
+      grid: { left: 60, right: 40, top: 30, bottom: 60, containLabel: true },
+      xAxis: { type: 'value', name: 'Temperature (°C)' },
+      yAxis: { type: 'value', name: 'Hold pressure (bar)' },
+      series
+    };
+  };
+
+  // Only auto-insert charts when the document is first generated.
+  if (!hasSavedDoc) {
+    editor.isReady.then(() => {
+      const rheoUrl = renderChartImage('rheo', buildRheoOption);
+      const windowUrl = renderChartImage('window', buildWindowOption);
+      updateImageAfterHeader('4. Rheology', rheoUrl, 'Rheology curve');
+      updateImageAfterHeader('5. Process Window', windowUrl, 'Process window');
+    });
+  }
+
+  const saveStatus = document.getElementById('saveStatus');
+  const saveReport = document.getElementById('saveReport');
+  saveReport?.addEventListener('click', async () => {
+    saveStatus.textContent = 'Saving...';
+    const data = await editor.save();
+    const payload = new URLSearchParams();
+    payload.set('content_json', JSON.stringify(data));
+    payload.set('html_snapshot', '');
+    const resp = await fetch('/reports/<%= reportConfig.id %>/editor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: payload
+    });
+    saveStatus.textContent = resp.ok ? 'Saved ✓' : 'Error saving';
+  });
+
+  document.getElementById('printReport')?.addEventListener('click', () => window.print());
+</script>
+<%- include('partials/foot') %>

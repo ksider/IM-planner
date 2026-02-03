@@ -1,6 +1,25 @@
-# IM-DOE Planner
-
-Local, offline-friendly DOE planner for injection molding. Built with Node.js + Express + SQLite + EJS + PureCSS.
+<table>
+  <tr>
+    <td width="120">
+      <img src="src/public/logo.svg" width="96" height="96" alt="IM Planner logo" />
+    </td>
+    <td>
+      <h1>IM-DOE Planner</h1>
+      <p>Local, offline-first DOE planner for injection molding.</p>
+      <p><strong>Stack:</strong></p>
+      <p>
+        <img src="https://img.shields.io/badge/Node.js-20.x-1f6feb?style=flat&logo=node.js&logoColor=white" alt="Node.js" />
+        <img src="https://img.shields.io/badge/Express-4.x-111111?style=flat&logo=express&logoColor=white" alt="Express" />
+        <img src="https://img.shields.io/badge/SQLite-better--sqlite3-0b5fa5?style=flat&logo=sqlite&logoColor=white" alt="SQLite" />
+        <img src="https://img.shields.io/badge/EJS-3.x-8c4b32?style=flat&logo=ejs&logoColor=white" alt="EJS" />
+        <img src="https://img.shields.io/badge/PureCSS-3.x-2f9c74?style=flat&logo=css3&logoColor=white" alt="PureCSS" />
+        <img src="https://img.shields.io/badge/ECharts-5.x-c23531?style=flat" alt="ECharts" />
+        <img src="https://img.shields.io/badge/jStat-1.x-6a5acd?style=flat" alt="jStat" />
+        <img src="https://img.shields.io/badge/Editor.js-2.x-2c2f36?style=flat" alt="Editor.js" />
+      </p>
+    </td>
+  </tr>
+</table>
 
 ## Install + Run
 ```bash
@@ -40,6 +59,10 @@ for the upcoming HTML/PDF/CSV report work and should be reviewed first before co
 - UI shows live previews for tokenized values; inputs keep the token, summaries display the resolved value.
 - Step calculations resolve tokens at runtime (server + client), so values survive reloads.
 - Machine edit page shows a small read-only token field next to each parameter for quick copy.
+- Report generator now saves report configs per experiment (multiple reports per experiment).
+- Report list lives inside the experiment, right after Detailed Optimization.
+- Report editor (Editor.js) with seeded structure and embedded charts (rheology + process window).
+- Editable report documents are stored in `report_documents` and opened via `/reports/:id/editor`.
 
 ## Supported Recipe Import Formats
 The importer accepts two common formats:

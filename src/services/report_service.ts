@@ -328,4 +328,105 @@ export function buildOutputsCsv(data: ReportData) {
   return rows.map((row) => row.map((cell) => (cell ?? "")).join(",")).join("\n");
 }
 
+export function buildReportEditorSeed(
+  report: ReportData,
+  generatedAt: string,
+  reportName: string | null
+) {
+  const blocks: Array<Record<string, unknown>> = [];
+  blocks.push({
+    type: "header",
+    data: { text: reportName || `Experiment Report #${report.experiment.id}`, level: 1 }
+  });
+  blocks.push({
+    type: "paragraph",
+    data: { text: `Generated: ${generatedAt}` }
+  });
+  blocks.push({
+    type: "paragraph",
+    data: { text: `Author: ${report.executors || "-"}` }
+  });
+  blocks.push({ type: "delimiter", data: {} });
+
+  blocks.push({ type: "header", data: { text: "1. Objective", level: 2 } });
+  blocks.push({
+    type: "paragraph",
+    data: { text: report.experiment.notes || "-" }
+  });
+
+  blocks.push({ type: "header", data: { text: "2. Materials & Method", level: 2 } });
+  blocks.push({
+    type: "paragraph",
+    data: { text: `Machine: ${report.machineName || "-"}` }
+  });
+  report.recipes.forEach((recipe) => {
+    blocks.push({
+      type: "paragraph",
+      data: { text: `Recipe: ${recipe.name}` }
+    });
+    const compRows = recipe.components.map((comp) => [comp.component_name, String(comp.phr)]);
+    blocks.push({
+      type: "table",
+      data: {
+        withHeadings: true,
+        content: [["Component", "PHR"], ...(compRows.length ? compRows : [["-", "-"]])]
+      }
+    });
+  });
+
+  blocks.push({ type: "header", data: { text: "3. Final Procedure", level: 2 } });
+  if (report.qualification) {
+    const q = report.qualification;
+    blocks.push({
+      type: "table",
+      data: {
+        withHeadings: true,
+        content: [
+          ["Parameter", "Value"],
+          ["Injection speed (cm3/s)", q.recommended_inj_speed ?? "-"],
+          ["Process window center temp (°C)", q.window.center_temp ?? "-"],
+          ["Process window center pressure (bar)", q.window.center_pressure ?? "-"],
+          ["Gate seal time (s)", q.gate_seal_time_s ?? "-"],
+          ["Min cooling time (s)", q.min_cooling_time_s ?? "-"]
+        ]
+      }
+    });
+  } else {
+    blocks.push({ type: "paragraph", data: { text: "-" } });
+  }
+
+  blocks.push({ type: "header", data: { text: "4. Rheology", level: 2 } });
+  blocks.push({ type: "paragraph", data: { text: "Rheology curve with selected point/band." } });
+  blocks.push({
+    type: "image",
+    data: { url: "", caption: "Rheology curve" }
+  });
+
+  blocks.push({ type: "header", data: { text: "5. Process Window", level: 2 } });
+  blocks.push({ type: "paragraph", data: { text: "Process window with accepted points." } });
+  blocks.push({
+    type: "image",
+    data: { url: "", caption: "Process window" }
+  });
+
+  if (report.doe && report.doe.length) {
+    blocks.push({ type: "header", data: { text: "6. DOE Results", level: 2 } });
+    const doeRows = report.doe.map((study) => [
+      study.name,
+      study.design_type,
+      String(study.run_count)
+    ]);
+    blocks.push({
+      type: "table",
+      data: { withHeadings: true, content: [["Study", "Type", "Runs"], ...doeRows] }
+    });
+  }
+
+  return {
+    time: Date.now(),
+    version: "2.28.2",
+    blocks
+  };
+}
+
 export type { ReportOptions, ReportData };

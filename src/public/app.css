@@ -1381,6 +1381,49 @@ textarea {
   font-size: 0.85rem;
 }
 
+.editor-surface {
+  min-height: 60vh;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 1.5rem;
+  margin-top: 1rem;
+}
+
+.save-status {
+  margin-top: 0.5rem;
+}
+
+.editor-surface .cdx-input,
+.editor-surface .image-tool__caption {
+  display: none;
+}
+
+.editor-surface .ce-popover {
+  z-index: 1400;
+  transform: translateY(-36px);
+}
+
+.editor-surface .tc-popover {
+  z-index: 1401;
+}
+
+.editor-surface .tc-popover__item {
+  white-space: nowrap;
+}
+
+.editor-surface .codex-editor,
+.editor-surface .codex-editor__redactor,
+.editor-surface .tc-wrap,
+.editor-surface .tc-table,
+.editor-surface .tc-toolbox {
+  overflow: visible;
+}
+
+.editor-surface .tc-table--heading .tc-row:first-child {
+  z-index: 0;
+}
+
 .report-meta {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

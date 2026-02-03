@@ -4,9 +4,10 @@ import {
   buildReport,
   buildQualificationCsv,
   buildDoeCsv,
-  buildOutputsCsv
+  buildOutputsCsv,
+  buildReportEditorSeed
 } from "../services/report_service.js";
-import { deleteReportConfig, getReportConfig } from "../repos/reports_repo.js";
+import { deleteReportConfig, getReportConfig, getReportDocument, upsertReportDocument } from "../repos/reports_repo.js";
 
 const parseInclude = (raw: unknown) => {
   if (!raw) return null;
@@ -78,6 +79,62 @@ export function createReportRouter(db: Db) {
     };
     const reportData = buildReport(db, config.experiment_id, options);
     res.render("report", { report: reportData, options, reportConfig: config });
+  });
+
+  router.get("/reports/:reportId/editor", (req, res) => {
+    const reportId = Number(req.params.reportId);
+    const config = getReportConfig(db, reportId);
+    if (!config) return res.status(404).send("Report not found");
+    let include: string[] = [];
+    let doeIds: number[] = [];
+    if (config.include_json) {
+      try {
+        const parsed = JSON.parse(config.include_json);
+        if (Array.isArray(parsed)) include = parsed.map((item) => String(item).toLowerCase());
+      } catch {
+        include = [];
+      }
+    }
+    if (config.doe_ids_json) {
+      try {
+        const parsed = JSON.parse(config.doe_ids_json);
+        if (Array.isArray(parsed)) doeIds = parsed.map((item) => Number(item)).filter(Number.isFinite);
+      } catch {
+        doeIds = [];
+      }
+    }
+    const options = {
+      includeQualification: include.includes("qualification"),
+      includeDoe: include.includes("doe"),
+      includeOutputs: include.includes("outputs"),
+      includeDefects: include.includes("defects"),
+      includeRawRuns: include.includes("raw"),
+      executors: config.executors,
+      doeIds
+    };
+    const reportData = buildReport(db, config.experiment_id, options);
+    const existingDoc = getReportDocument(db, reportId);
+    const generatedAt = new Date().toLocaleString();
+    const seedData = existingDoc
+      ? JSON.parse(existingDoc.content_json)
+      : buildReportEditorSeed(reportData, generatedAt, config.name);
+    res.render("report_editor", {
+      report: reportData,
+      reportConfig: config,
+      editorData: seedData,
+      hasSavedDoc: Boolean(existingDoc)
+    });
+  });
+
+  router.post("/reports/:reportId/editor", (req, res) => {
+    const reportId = Number(req.params.reportId);
+    const config = getReportConfig(db, reportId);
+    if (!config) return res.status(404).send("Report not found");
+    const contentJson = typeof req.body.content_json === "string" ? req.body.content_json : "";
+    const htmlSnapshot = typeof req.body.html_snapshot === "string" ? req.body.html_snapshot : null;
+    if (!contentJson) return res.status(400).send("Missing content");
+    upsertReportDocument(db, reportId, contentJson, htmlSnapshot);
+    res.json({ ok: true });
   });
 
   router.post("/reports/:reportId/delete", (req, res) => {
