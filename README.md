@@ -21,9 +21,9 @@
   </tr>
 </table>
 
-      <p>
-        <img src="screenshot.jpg" alt="IM Planner screenshot" />
-      </p>
+<p>
+  <img src="screenshot.jpg" alt="IM Planner screenshot" />
+</p>
 
 ## Install + Run
 ```bash
