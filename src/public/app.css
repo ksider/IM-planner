@@ -258,6 +258,21 @@ sub {
   font-size: 1.1rem;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.title-row .card-title {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .profile-hero {
   display: flex;
   flex-direction: column;
@@ -615,6 +630,19 @@ sub {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+.card-header.card-header-main {
+  width: 100%;
+}
+
+.card-header.card-header-main .section-actions {
+  margin-left: auto;
+}
+
+.status-pill.status-archived {
+  background: #e2e2e2;
+  color: #5a5a52;
 }
 
 .section-links {

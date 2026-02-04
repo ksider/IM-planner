@@ -50,8 +50,12 @@ import {
 } from "../services/analysis_service.js";
 import { sd } from "../domain/stats.js";
 import { toCsv } from "../lib/csv.js";
-import { archiveExperiment, updateExperimentOwner } from "../repos/experiments_repo.js";
-import { listUsers } from "../repos/users_repo.js";
+import {
+  archiveExperiment,
+  updateExperimentOwner,
+  updateExperimentManualDone
+} from "../repos/experiments_repo.js";
+import { listUsers, findUserById } from "../repos/users_repo.js";
 
 // Local helper for role checks in this router.
 function hasRole(req: express.Request, roles: string[]) {
@@ -102,6 +106,14 @@ export function createExperimentsRouter(db: Db) {
     const experiment = getExperiment(db, experimentId);
     if (!experiment) return res.status(404).send("Experiment not found");
     const qualSummaries = listQualSummaries(db, experimentId);
+    const summaryCount = qualSummaries.length;
+    const autoStatus =
+      summaryCount >= 6 ? "done" : summaryCount > 0 ? "in_progress" : "not_started";
+    const autoStatusLabel =
+      autoStatus === "done" ? "Done" : autoStatus === "in_progress" ? "In progress" : "Not started";
+    const manualDone = experiment.status_done_manual === 1;
+    const status = manualDone ? "done" : autoStatus;
+    const statusLabel = manualDone ? "Done" : autoStatusLabel;
     const doeStudies = listDoeStudies(db, experimentId);
     const machines = listMachines(db);
     const selectedMachine = experiment.machine_id ? getMachine(db, experiment.machine_id) : null;
@@ -112,16 +124,25 @@ export function createExperimentsRouter(db: Db) {
     // Owner selection is visible only to admin/manager.
     const canManageOwner = req.user?.role === "admin" || req.user?.role === "manager";
     const users = canManageOwner ? listUsers(db) : [];
+    const ownerUser = experiment.owner_user_id
+      ? findUserById(db, experiment.owner_user_id)
+      : null;
+    const ownerName = ownerUser?.name?.trim() || ownerUser?.email?.trim() || "";
     res.render("experiment_detail", {
       experiment,
       qualSummaries,
+      status,
+      statusLabel,
+      autoStatus,
+      autoStatusLabel,
       doeStudies,
       machines,
       selectedMachine,
       recipeNames,
       reports,
       users,
-      canManageOwner
+      canManageOwner,
+      ownerName
     });
   });
 
@@ -581,6 +602,23 @@ export function createExperimentsRouter(db: Db) {
     if (!Number.isFinite(experimentId)) return res.status(400).send("Invalid experiment");
     updateExperimentOwner(db, experimentId, Number.isFinite(ownerUserId) ? ownerUserId : null);
     res.redirect(`/experiments/${experimentId}`);
+  });
+
+  // Status toggle (manual done) for admin/manager only.
+  router.post("/experiments/:id/status", (req, res) => {
+    if (!hasRole(req, ["admin", "manager"])) {
+      return res.status(403).send("Forbidden");
+    }
+    const experimentId = Number(req.params.id);
+    if (!Number.isFinite(experimentId)) return res.status(400).send("Invalid experiment");
+    const experiment = getExperiment(db, experimentId);
+    if (!experiment) return res.status(404).send("Experiment not found");
+    const done = String(req.body?.done ?? "") === "1";
+    updateExperimentManualDone(db, experimentId, done ? 1 : 0);
+    if (req.headers["x-requested-with"] === "fetch") {
+      return res.json({ ok: true, done });
+    }
+    return res.redirect(`/experiments/${experimentId}`);
   });
 
   router.post("/experiments/:id/doe/:doeId/configs", (req, res) => {

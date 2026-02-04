@@ -14,6 +14,7 @@ export type Experiment = {
   max_runs: number;
   replicate_count: number;
   recipe_as_block: number;
+  status_done_manual?: number;
 };
 
 export type ExperimentListRow = Experiment & {
@@ -151,6 +152,10 @@ export function updateExperiment(
 
 export function updateExperimentOwner(db: Db, id: number, ownerUserId: number | null) {
   db.prepare("UPDATE experiments SET owner_user_id = ? WHERE id = ?").run(ownerUserId, id);
+}
+
+export function updateExperimentManualDone(db: Db, id: number, done: number) {
+  db.prepare("UPDATE experiments SET status_done_manual = ? WHERE id = ?").run(done ? 1 : 0, id);
 }
 
 export function createExperiment(

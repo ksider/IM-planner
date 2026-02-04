@@ -311,7 +311,8 @@ function initDb(db: Db) {
     ["max_runs", "ALTER TABLE experiments ADD COLUMN max_runs INTEGER DEFAULT 200"],
     ["replicate_count", "ALTER TABLE experiments ADD COLUMN replicate_count INTEGER DEFAULT 1"],
     ["recipe_as_block", "ALTER TABLE experiments ADD COLUMN recipe_as_block INTEGER DEFAULT 0"],
-    ["machine_id", "ALTER TABLE experiments ADD COLUMN machine_id INTEGER"]
+    ["machine_id", "ALTER TABLE experiments ADD COLUMN machine_id INTEGER"],
+    ["status_done_manual", "ALTER TABLE experiments ADD COLUMN status_done_manual INTEGER NOT NULL DEFAULT 0"]
   ] as const;
   for (const [column, sql] of experimentColumns) {
     if (!hasColumn(db, "experiments", column)) {

@@ -55,23 +55,21 @@
         <tr>
           <th>ID</th>
           <th>Name</th>
-          <th>Design</th>
-          <th>Seed</th>
+          <th>Status</th>
           <th>Created</th>
         </tr>
       </thead>
       <tbody>
         <% if (experiments.length === 0) { %>
           <tr>
-            <td colspan="5">No experiments assigned.</td>
+            <td colspan="4">No experiments assigned.</td>
           </tr>
         <% } %>
         <% experiments.forEach((exp) => { %>
           <tr>
             <td><%= exp.id %></td>
             <td><a href="/experiments/<%= exp.id %>"><%- formatInline(exp.name) %></a></td>
-            <td><span class="badge"><%= exp.design_type %></span></td>
-            <td><%= exp.seed %></td>
+            <td><span class="status-pill status-<%= exp.status %>"><%= exp.statusLabel %></span></td>
             <td><%= new Date(exp.created_at).toLocaleDateString() %></td>
           </tr>
         <% }); %>

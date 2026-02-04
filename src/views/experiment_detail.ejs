@@ -2,17 +2,28 @@
 <%- include('partials/nav') %>
 <div class="container">
   <div class="card">
-    <div class="card-header">
+    <div class="card-header card-header-main">
       <a class="back-link" href="/" aria-label="Back to experiments">
         <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
       </a>
       <div>
-        <h1 class="card-title"><%- formatInline(experiment.name) %></h1>
-        <% if (experiment.notes) { %>
-          <p class="small-note"><%- formatInline(experiment.notes) %></p>
-        <% } %>
+        <div class="title-row">
+          <h1 class="card-title"><%- formatInline(experiment.name) %></h1>
+        </div>
       </div>
       <div class="section-actions">
+        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+          <button class="icon-button" type="button" id="openMachineEdit" title="Edit experiment">
+            <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+          </button>
+        <% } %>
+        <span class="status-pill status-<%= status %>" id="experimentStatusPill" data-auto-status="<%= autoStatus %>" data-auto-label="<%= autoStatusLabel %>"><%= statusLabel %></span>
+        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
+          <label class="toggle" title="Mark done">
+            <input type="checkbox" id="experimentStatusToggle" <%= experiment.status_done_manual === 1 ? 'checked' : '' %>>
+            <span class="track"></span>
+          </label>
+        <% } %>
       </div>
     </div>
   </div>
@@ -20,11 +31,6 @@
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">Experiment</h2>
-      <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
-        <button class="icon-button" type="button" id="openMachineEdit" title="Edit machine assignment">
-          <span class="material-symbols-rounded" aria-hidden="true">edit</span>
-        </button>
-      <% } %>
     </div>
     <div class="setup-summary">
       <div>
@@ -145,10 +151,10 @@
                   title="Edit report"
                   data-report-edit
                   data-report-id="<%= report.id %>"
-                  data-report-name="<%- formatInline(report.name) %>"
-                  data-report-executors="<%- formatInline(report.executors || '') %>"
-                  data-report-include="<%- JSON.stringify(includeList) %>"
-                  data-report-doe="<%- JSON.stringify(doeList) %>"
+                  data-report-name="<%= report.name %>"
+                  data-report-executors="<%= report.executors || '' %>"
+                  data-report-include="<%= JSON.stringify(includeList) %>"
+                  data-report-doe="<%= JSON.stringify(doeList) %>"
                 >
                   <span class="material-symbols-rounded" aria-hidden="true">edit</span>
                 </button>
@@ -184,7 +190,7 @@
       </div>
       <div>
         <label for="reportExecutors">Executors</label>
-        <input id="reportExecutors" name="executors" type="text" placeholder="e.g. Ivan Petrov, Anna Lee">
+        <input id="reportExecutors" name="executors" type="text" placeholder="e.g. Ivan Petrov, Anna Lee" data-default-executors="<%- formatInline(ownerName || '') %>">
       </div>
       <div>
         <div class="small-note">Include sections</div>
@@ -377,7 +383,8 @@
       const doe = parseJsonArray(btn.dataset.reportDoe);
       editingReportId = btn.dataset.reportId || null;
       reportName.value = btn.dataset.reportName || '';
-      reportExecutors.value = btn.dataset.reportExecutors || '';
+      const currentExecutors = btn.dataset.reportExecutors || '';
+      reportExecutors.value = currentExecutors || reportExecutors.dataset.defaultExecutors || '';
       reportForm.querySelectorAll('input[name="include"]').forEach((input) => {
         input.checked = include.includes(input.value);
       });
@@ -390,6 +397,12 @@
       }
       reportDialog?.showModal();
     });
+  });
+
+  document.getElementById('openReportDialog')?.addEventListener('click', () => {
+    if (reportExecutors && !reportExecutors.value) {
+      reportExecutors.value = reportExecutors.dataset.defaultExecutors || '';
+    }
   });
 
   reportDialog?.addEventListener('close', () => {
@@ -444,6 +457,50 @@
       setOwnerStatus('Owner updated.', '#1f7a4f');
     } catch {
       setOwnerStatus('Failed to update owner.', '#9e2b2b');
+    }
+  });
+
+  const statusToggle = document.getElementById('experimentStatusToggle');
+  const statusPill = document.getElementById('experimentStatusPill');
+  statusToggle?.addEventListener('change', async () => {
+    const done = statusToggle.checked ? '1' : '0';
+    if (statusPill) {
+      if (statusToggle.checked) {
+        statusPill.classList.remove('status-in_progress', 'status-not_started');
+        statusPill.classList.add('status-done');
+        statusPill.textContent = 'Done';
+      } else {
+        const autoStatus = statusPill.dataset.autoStatus || 'not_started';
+        const autoLabel = statusPill.dataset.autoLabel || 'Not started';
+        statusPill.classList.remove('status-done', 'status-in_progress', 'status-not_started');
+        statusPill.classList.add(`status-${autoStatus}`);
+        statusPill.textContent = autoLabel;
+      }
+    }
+    try {
+      const payload = new URLSearchParams();
+      payload.set('done', done);
+      const resp = await fetch('/experiments/<%= experiment.id %>/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' },
+        body: payload
+      });
+      if (!resp.ok) throw new Error('Request failed');
+    } catch {
+      statusToggle.checked = !statusToggle.checked;
+      if (statusPill) {
+        if (statusToggle.checked) {
+          statusPill.classList.remove('status-in_progress', 'status-not_started');
+          statusPill.classList.add('status-done');
+          statusPill.textContent = 'Done';
+        } else {
+          const autoStatus = statusPill.dataset.autoStatus || 'not_started';
+          const autoLabel = statusPill.dataset.autoLabel || 'Not started';
+          statusPill.classList.remove('status-done', 'status-in_progress', 'status-not_started');
+          statusPill.classList.add(`status-${autoStatus}`);
+          statusPill.textContent = autoLabel;
+        }
+      }
     }
   });
 </script>
