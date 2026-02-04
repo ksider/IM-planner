@@ -1,19 +1,23 @@
-<%- include('partials/head', { title: 'IM Planner | My Experiments' }) %>
+<%- include('partials/head', { title: 'IM Planner | User' }) %>
 <%- include('partials/nav') %>
 <div class="container">
   <div class="card">
-    <h1 class="card-title">My Experiments</h1>
-    <p class="small-note">Experiments assigned to you.</p>
+    <h1 class="card-title"><%= user.name || user.email %></h1>
+    <p class="small-note">
+      <%= user.email %> · <%= user.role || 'user' %> · <%= user.status %>
+      <% if (isSelf) { %>
+        · <a href="/profile">Edit profile</a>
+      <% } %>
+    </p>
   </div>
 
   <div class="card">
-    <h2 class="card-title">List</h2>
+    <h2 class="card-title">Experiments</h2>
     <table class="pure-table table-compact">
       <thead>
         <tr>
           <th>ID</th>
           <th>Name</th>
-          <th>Owner</th>
           <th>Status</th>
           <th>Created</th>
         </tr>
@@ -21,20 +25,13 @@
       <tbody>
         <% if (experiments.length === 0) { %>
           <tr>
-            <td colspan="5">No experiments assigned.</td>
+            <td colspan="4">No experiments assigned.</td>
           </tr>
         <% } %>
         <% experiments.forEach((exp) => { %>
           <tr>
             <td><%= exp.id %></td>
             <td><a href="/experiments/<%= exp.id %>"><%- formatInline(exp.name) %></a></td>
-            <td>
-              <% if (exp.owner_user_id) { %>
-                <a href="/users/<%= exp.owner_user_id %>"><%= exp.owner_label %></a>
-              <% } else { %>
-                <%= exp.owner_label %>
-              <% } %>
-            </td>
             <td><span class="status-pill status-<%= exp.status %>"><%= exp.statusLabel %></span></td>
             <td><%= new Date(exp.created_at).toLocaleDateString() %></td>
           </tr>

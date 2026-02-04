@@ -16,6 +16,8 @@
         <img src="https://img.shields.io/badge/ECharts-5.x-c23531?style=flat" alt="ECharts" />
         <img src="https://img.shields.io/badge/jStat-1.x-6a5acd?style=flat" alt="jStat" />
         <img src="https://img.shields.io/badge/Editor.js-2.x-2c2f36?style=flat" alt="Editor.js" />
+        <img src="https://img.shields.io/badge/Passport.js-0.6-1d2b3a?style=flat" alt="Passport.js" />
+        <img src="https://img.shields.io/badge/bcryptjs-2.x-8b5a2b?style=flat" alt="bcryptjs" />
       </p>
     </td>
   </tr>
@@ -39,6 +41,14 @@ Create a `.env` file based on `.env.example` and set:
 - `ADMIN_TEMP_PASSWORD`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
+
+## Authentication
+- The first admin account is created on startup using `ADMIN_EMAIL` + `ADMIN_TEMP_PASSWORD`.
+- `ADMIN_TEMP_PASSWORD` is used only for initial seeding. Changing it later does not update an existing admin password.
+- After first login with the temp password, the admin must set a new password.
+- Passwords are stored as bcrypt hashes (not in plain text).
+- Roles: `admin`, `manager`, `engineer`, `operator`, `viewer`.
+- Access: admins see all experiments; others see only experiments they own.
 
 ## Core Flows
 1) Create an experiment with recipes and machine assignment.

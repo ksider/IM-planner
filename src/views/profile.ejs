@@ -1,33 +1,52 @@
 <%- include('partials/head', { title: title }) %>
 <%- include('partials/nav') %>
 <div class="container">
-  <div class="card">
-    <h1 class="card-title">Profile</h1>
-    <% if (error) { %>
-      <div class="auth-error"><%= error %></div>
-    <% } %>
-    <% if (notice) { %>
-      <div class="auth-error"><%= notice %></div>
-    <% } %>
+  <div class="card profile-hero">
+    <div class="profile-hero-row">
+      <div>
+        <h1 class="card-title profile-name" id="profileName">
+          <%= currentUser?.name || currentUser?.email || 'Profile' %>
+        </h1>
+        <div class="small-note profile-meta" id="profileMeta">
+          <%= (currentUser?.role || 'user') %> · <%= currentUser?.email || '-' %>
+        </div>
+      </div>
+      <button class="icon-btn icon-only" type="button" id="openProfileDialog" title="Edit profile">
+        <span class="material-symbols-rounded">edit</span>
+      </button>
+    </div>
   </div>
 
-  <div class="card">
-    <h2 class="card-title">Personal Settings</h2>
-    <form class="pure-form pure-form-stacked" action="/me/name" method="post">
-      <label for="name">Name</label>
-      <input id="name" name="name" type="text" value="<%= currentUser?.name ?? '' %>" placeholder="Your name">
-      <button class="pure-button pure-button-primary" type="submit">Update name</button>
-    </form>
-    <form class="pure-form pure-form-stacked" action="/me/password" method="post" style="margin-top: 1rem;">
-      <label for="current_password">Current password</label>
-      <input id="current_password" name="current_password" type="password" autocomplete="current-password" required>
-      <label for="new_password">New password</label>
-      <input id="new_password" name="new_password" type="password" autocomplete="new-password" required>
-      <label for="confirm_password">Confirm password</label>
-      <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
-      <button class="pure-button pure-button-primary" type="submit">Update password</button>
-    </form>
-  </div>
+  <dialog class="modal-frame" id="profileDialog">
+    <div class="modal-header">
+      <strong>Profile settings</strong>
+      <button class="icon-btn icon-only" type="button" data-close title="Close">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <% if (error) { %>
+        <div class="auth-error"><%= error %></div>
+      <% } %>
+      <% if (notice) { %>
+        <div class="auth-error"><%= notice %></div>
+      <% } %>
+      <form class="pure-form pure-form-stacked" action="/me/name" method="post">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" value="<%= currentUser?.name ?? '' %>" placeholder="Your name">
+        <button class="pure-button pure-button-primary" type="submit">Update name</button>
+      </form>
+      <form class="pure-form pure-form-stacked" action="/me/password" method="post" style="margin-top: 1rem;">
+        <label for="current_password">Current password</label>
+        <input id="current_password" name="current_password" type="password" autocomplete="current-password" required>
+        <label for="new_password">New password</label>
+        <input id="new_password" name="new_password" type="password" autocomplete="new-password" required>
+        <label for="confirm_password">Confirm password</label>
+        <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
+        <button class="pure-button pure-button-primary" type="submit">Update password</button>
+      </form>
+    </div>
+  </dialog>
 
   <div class="card">
     <h2 class="card-title">My Experiments</h2>
@@ -61,3 +80,31 @@
   </div>
 </div>
 <%- include('partials/foot') %>
+<script>
+  const profileDialog = document.getElementById('profileDialog');
+  const openProfileDialog = document.getElementById('openProfileDialog');
+  if (openProfileDialog && profileDialog) {
+    openProfileDialog.addEventListener('click', () => profileDialog.showModal());
+  }
+  profileDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => profileDialog.close());
+  });
+
+  const nameInput = document.getElementById('name');
+  const nameOutput = document.getElementById('profileName');
+  const metaOutput = document.getElementById('profileMeta');
+  const emailValue = "<%= (currentUser?.email ?? '').replace(/\"/g, '&quot;') %>";
+  const roleValue = "<%= (currentUser?.role ?? 'user').replace(/\"/g, '&quot;') %>";
+  const syncProfile = () => {
+    if (!nameInput || !nameOutput || !metaOutput) return;
+    const nextName = nameInput.value.trim();
+    nameOutput.textContent = nextName || emailValue || 'Profile';
+    metaOutput.textContent = `${roleValue} · ${emailValue || '-'}`;
+  };
+  nameInput?.addEventListener('input', syncProfile);
+  syncProfile();
+
+  if ("<%= error ? '1' : '' %>" || "<%= notice ? '1' : '' %>") {
+    profileDialog?.showModal();
+  }
+</script>

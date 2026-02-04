@@ -16,6 +16,13 @@ export type Experiment = {
   recipe_as_block: number;
 };
 
+export type ExperimentListRow = Experiment & {
+  owner_name: string | null;
+  owner_email: string | null;
+  qual_summary_count: number;
+  qual_run_value_count: number;
+};
+
 export function listExperiments(db: Db, includeArchived = false): Experiment[] {
   if (includeArchived) {
     return db.prepare("SELECT * FROM experiments ORDER BY id DESC").all() as Experiment[];
@@ -23,6 +30,32 @@ export function listExperiments(db: Db, includeArchived = false): Experiment[] {
   return db
     .prepare("SELECT * FROM experiments WHERE archived_at IS NULL ORDER BY id DESC")
     .all() as Experiment[];
+}
+
+export function listExperimentsWithMeta(db: Db, includeArchived = false): ExperimentListRow[] {
+  const baseSql = `
+    SELECT
+      experiments.*,
+      users.name as owner_name,
+      users.email as owner_email,
+      (
+        SELECT COUNT(DISTINCT step_number)
+        FROM qual_step_summary
+        WHERE qual_step_summary.experiment_id = experiments.id
+      ) as qual_summary_count,
+      (
+        SELECT COUNT(*)
+        FROM qual_run_values
+        JOIN qual_runs ON qual_runs.id = qual_run_values.run_id
+        WHERE qual_runs.experiment_id = experiments.id
+      ) as qual_run_value_count
+    FROM experiments
+    LEFT JOIN users ON users.id = experiments.owner_user_id
+  `;
+  const sql = includeArchived
+    ? `${baseSql} ORDER BY experiments.id DESC`
+    : `${baseSql} WHERE experiments.archived_at IS NULL ORDER BY experiments.id DESC`;
+  return db.prepare(sql).all() as ExperimentListRow[];
 }
 
 export function listExperimentsForOwner(
@@ -38,6 +71,37 @@ export function listExperimentsForOwner(
   return db
     .prepare("SELECT * FROM experiments WHERE owner_user_id = ? AND archived_at IS NULL ORDER BY id DESC")
     .all(ownerUserId) as Experiment[];
+}
+
+export function listExperimentsForOwnerWithMeta(
+  db: Db,
+  ownerUserId: number,
+  includeArchived = false
+): ExperimentListRow[] {
+  const baseSql = `
+    SELECT
+      experiments.*,
+      users.name as owner_name,
+      users.email as owner_email,
+      (
+        SELECT COUNT(DISTINCT step_number)
+        FROM qual_step_summary
+        WHERE qual_step_summary.experiment_id = experiments.id
+      ) as qual_summary_count,
+      (
+        SELECT COUNT(*)
+        FROM qual_run_values
+        JOIN qual_runs ON qual_runs.id = qual_run_values.run_id
+        WHERE qual_runs.experiment_id = experiments.id
+      ) as qual_run_value_count
+    FROM experiments
+    LEFT JOIN users ON users.id = experiments.owner_user_id
+    WHERE experiments.owner_user_id = ?
+  `;
+  const sql = includeArchived
+    ? `${baseSql} ORDER BY experiments.id DESC`
+    : `${baseSql} AND experiments.archived_at IS NULL ORDER BY experiments.id DESC`;
+  return db.prepare(sql).all(ownerUserId) as ExperimentListRow[];
 }
 
 export function getExperiment(db: Db, id: number): Experiment | undefined {

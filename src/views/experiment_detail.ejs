@@ -262,7 +262,7 @@
         <% if (canManageOwner) { %>
           <div class="field-span">
             <label>Owner (admin/manager only)</label>
-            <select name="owner_user_id" form="ownerUpdateForm">
+            <select name="owner_user_id" id="ownerSelect">
               <option value="">No owner</option>
               <% (users || []).forEach((user) => { %>
                 <option value="<%= user.id %>" <%= experiment.owner_user_id === user.id ? 'selected' : '' %>>
@@ -270,23 +270,17 @@
                 </option>
               <% }); %>
             </select>
+            <div class="small-note" id="ownerSaveStatus">Changes apply immediately.</div>
           </div>
         <% } %>
       </div>
     </div>
     <div class="modal-footer">
       <button class="pure-button" type="button" data-close>Cancel</button>
-      <% if (canManageOwner) { %>
-        <button class="pure-button" type="submit" form="ownerUpdateForm">Update Owner</button>
-      <% } %>
       <button class="pure-button pure-button-primary" type="submit">Save</button>
     </div>
   </form>
 </dialog>
-
-<% if (canManageOwner) { %>
-  <form id="ownerUpdateForm" class="pure-form" action="/experiments/<%= experiment.id %>/owner" method="post"></form>
-<% } %>
 
 <dialog class="modal-frame" id="doeCreateDialog">
   <div class="modal-header">
@@ -427,6 +421,30 @@
     if (!resp.ok) return;
     const data = await resp.json();
     if (data?.url) window.location.href = data.url;
+  });
+
+  const ownerSelect = document.getElementById('ownerSelect');
+  const ownerSaveStatus = document.getElementById('ownerSaveStatus');
+  const setOwnerStatus = (text, tone) => {
+    if (!ownerSaveStatus) return;
+    ownerSaveStatus.textContent = text;
+    ownerSaveStatus.style.color = tone || '';
+  };
+  ownerSelect?.addEventListener('change', async () => {
+    const payload = new URLSearchParams();
+    payload.set('owner_user_id', ownerSelect.value || '');
+    setOwnerStatus('Saving...', '#8a5a1f');
+    try {
+      const resp = await fetch(`/experiments/<%= experiment.id %>/owner`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
+      if (!resp.ok) throw new Error('Request failed');
+      setOwnerStatus('Owner updated.', '#1f7a4f');
+    } catch {
+      setOwnerStatus('Failed to update owner.', '#9e2b2b');
+    }
   });
 </script>
 <%- include('partials/foot') %>

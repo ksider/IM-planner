@@ -162,19 +162,25 @@ sub {
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+  aspect-ratio: 1 / 1;
+  flex: 0 0 12px;
   border-radius: 999px;
   display: inline-block;
-  background: #c4c4c4;
+  vertical-align: middle;
+  background: radial-gradient(circle at 30% 30%, #ffffff, #c4c4c4 60%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .status-dot.online {
-  background: #2ecc71;
+  background: radial-gradient(circle at 30% 30%, #eafff2, #2ecc71 60%);
 }
 
 .status-dot.offline {
-  background: #d64541;
+  background: radial-gradient(circle at 30% 30%, #ffecec, #d64541 60%);
 }
 
 .reset-btn {
@@ -252,6 +258,25 @@ sub {
   font-size: 1.1rem;
 }
 
+.profile-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-hero-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.profile-name {
+  font-size: 1.3rem;
+  margin-bottom: 0.35rem;
+}
+
+
 .grid-two {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -284,6 +309,33 @@ sub {
   color: #2f496f;
 }
 
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  background: #efe8dd;
+  color: #6b6156;
+}
+
+.status-pill.status-done {
+  background: #dcefe4;
+  color: #1f7a4f;
+}
+
+.status-pill.status-in_progress {
+  background: #f7ead7;
+  color: #8a5a1f;
+}
+
+.status-pill.status-not_started {
+  background: #f4dad7;
+  color: #9e2b2b;
+}
+
 .icon-btn {
   background: #fff;
   border: 1px solid var(--border);
@@ -292,6 +344,11 @@ sub {
   cursor: pointer;
   font-weight: 600;
   color: #2c2c28;
+}
+
+.icon-btn.warn {
+  color: #8a5a1f;
+  border-color: #e7c59a;
 }
 
 .icon-btn.danger {

@@ -44,28 +44,30 @@
           <% users.forEach(function(user) { %>
             <tr class="<%= user.status === 'DISABLED' ? 'row-banned' : '' %>">
               <td>
-                <form method="post" action="/admin/users/<%= user.id %>" class="pure-form inline-form autosave-form ajax-form">
+                <div class="pure-form inline-form">
                   <span class="status-dot <%= user.status === 'ACTIVE' ? 'online' : 'offline' %>" title="<%= user.status %>"></span>
-                  <input name="name" type="text" value="<%= user.name ?? '' %>" placeholder="Name">
-                  <input name="email" type="email" value="<%= user.email %>">
+                  <input name="name" type="text" value="<%= user.name ?? '' %>" placeholder="Name" form="userForm-<%= user.id %>" data-autosave="userForm-<%= user.id %>">
+                  <input name="email" type="email" value="<%= user.email %>" form="userForm-<%= user.id %>" data-autosave="userForm-<%= user.id %>">
+                </div>
               </td>
               <td>
-                <select name="role">
+                <div class="pure-form inline-form">
+                  <select name="role" form="userForm-<%= user.id %>" data-autosave="userForm-<%= user.id %>">
                   <option value="" <%= !user.role ? 'selected' : '' %>>none</option>
                   <option value="admin" <%= user.role === 'admin' ? 'selected' : '' %>>admin</option>
                   <option value="manager" <%= user.role === 'manager' ? 'selected' : '' %>>manager</option>
                   <option value="engineer" <%= user.role === 'engineer' ? 'selected' : '' %>>engineer</option>
                   <option value="operator" <%= user.role === 'operator' ? 'selected' : '' %>>operator</option>
                   <option value="viewer" <%= user.role === 'viewer' ? 'selected' : '' %>>viewer</option>
-                </select>
+                  </select>
+                </div>
               </td>
               <td>
-                  <button type="submit" class="pure-button">Save</button>
-                </form>
+                <form id="userForm-<%= user.id %>" method="post" action="/admin/users/<%= user.id %>" class="pure-form inline-form autosave-form ajax-form"></form>
                 <form method="post" action="/admin/users/<%= user.id %>/reset-password" class="pure-form inline-form reset-form">
                   <input type="hidden" name="email" value="<%= user.email %>">
-                  <button type="submit" class="pure-button reset-btn">
-                    Reset
+                  <button type="submit" class="icon-btn icon-only reset-btn" title="Reset password">
+                    <span class="material-symbols-rounded" aria-hidden="true">restart_alt</span>
                     <% if (user.reset_requested_at) { %>
                       <span class="alert-dot" title="Reset requested"></span>
                     <% } %>
@@ -77,18 +79,26 @@
                 </form>
                 <% if (user.status === 'DISABLED') { %>
                   <form method="post" action="/admin/users/<%= user.id %>/unban" class="pure-form inline-form ajax-form">
-                    <button type="submit" class="pure-button">Unban</button>
+                    <button type="submit" class="icon-btn icon-only" title="Unban user" data-ban-toggle="unban">
+                      <span class="material-symbols-rounded" aria-hidden="true">lock_open</span>
+                    </button>
                   </form>
                 <% } else { %>
                   <form method="post" action="/admin/users/<%= user.id %>/ban" class="pure-form inline-form ajax-form">
-                    <button type="submit" class="pure-button button-warn">Ban</button>
+                    <button type="submit" class="icon-btn icon-only warn" title="Ban user" data-ban-toggle="ban">
+                      <span class="material-symbols-rounded" aria-hidden="true">block</span>
+                    </button>
                   </form>
                 <% } %>
                 <form method="post" action="/admin/users/<%= user.id %>/force-logout" class="pure-form inline-form ajax-form">
-                  <button type="submit" class="pure-button">Force logout</button>
+                  <button type="submit" class="icon-btn icon-only" title="Force logout">
+                    <span class="material-symbols-rounded" aria-hidden="true">logout</span>
+                  </button>
                 </form>
                 <form method="post" action="/admin/users/<%= user.id %>/delete" class="pure-form inline-form ajax-form" onsubmit="return confirm('Delete user?');">
-                  <button type="submit" class="pure-button button-danger">Delete</button>
+                  <button type="submit" class="icon-btn icon-only danger" title="Delete user">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
                 </form>
               </td>
             </tr>
@@ -220,25 +230,31 @@
 
   // Auto-save admin edits (except user creation).
   const autosaveTimers = new Map();
-  document.querySelectorAll('.autosave-form').forEach((form) => {
-    form.addEventListener('change', () => {
-      const existing = autosaveTimers.get(form);
-      if (existing) clearTimeout(existing);
-      const timer = setTimeout(async () => {
-        const payload = new URLSearchParams(new FormData(form));
-        const resp = await fetch(form.action, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-Requested-With': 'fetch'
-          },
-          body: payload
-        });
-        if (!resp.ok) {
-          showToast('Save failed', 'error');
-        }
-      }, 400);
-      autosaveTimers.set(form, timer);
+  const scheduleAutosave = (form) => {
+    if (!form) return;
+    const existing = autosaveTimers.get(form);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(async () => {
+      const payload = new URLSearchParams(new FormData(form));
+      const resp = await fetch(form.action, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Requested-With': 'fetch'
+        },
+        body: payload
+      });
+      if (!resp.ok) {
+        showToast('Save failed', 'error');
+      }
+    }, 400);
+    autosaveTimers.set(form, timer);
+  };
+  document.querySelectorAll('[data-autosave]').forEach((field) => {
+    field.addEventListener('change', () => {
+      const formId = field.getAttribute('data-autosave');
+      const form = formId ? document.getElementById(formId) : null;
+      scheduleAutosave(form);
     });
   });
 
@@ -258,6 +274,7 @@
     if (form.classList.contains('autosave-form')) return;
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      const banToggle = form.querySelector('[data-ban-toggle]');
       const payload = new URLSearchParams(new FormData(form));
       const resp = await fetch(form.action, {
         method: 'POST',
@@ -273,6 +290,24 @@
         return;
       }
       showToast(data?.message || 'Saved', 'success');
+      if (banToggle) {
+        const isBan = banToggle.dataset.banToggle === 'ban';
+        const nextIsBan = !isBan;
+        const icon = banToggle.querySelector('.material-symbols-rounded');
+        if (nextIsBan) {
+          banToggle.dataset.banToggle = 'ban';
+          banToggle.title = 'Ban user';
+          banToggle.classList.add('warn');
+          if (icon) icon.textContent = 'block';
+          form.action = form.action.replace(/\/unban$/, '/ban');
+        } else {
+          banToggle.dataset.banToggle = 'unban';
+          banToggle.title = 'Unban user';
+          banToggle.classList.remove('warn');
+          if (icon) icon.textContent = 'lock_open';
+          form.action = form.action.replace(/\/ban$/, '/unban');
+        }
+      }
     });
   });
 
