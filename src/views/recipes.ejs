@@ -9,20 +9,26 @@
       </div>
       <div class="recipes-actions">
         <input type="search" class="recipe-search" placeholder="Search recipes..." data-recipe-search>
-        <form class="pure-form" action="/recipes/import" method="post" enctype="multipart/form-data">
-          <input type="file" name="matrix" accept=".csv,.tsv,text/csv,text/tab-separated-values" required>
-          <button class="icon-btn" type="submit" title="Import Recipes">Import</button>
-        </form>
-        <form class="pure-form" action="/recipes/clear" method="post" onsubmit="return confirm('Delete all imported recipes?');">
-          <button class="icon-btn danger" type="submit" title="Delete All Recipes">Delete All</button>
-        </form>
+        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+          <form class="pure-form" action="/recipes/import" method="post" enctype="multipart/form-data">
+            <input type="file" name="matrix" accept=".csv,.tsv,text/csv,text/tab-separated-values" required>
+            <button class="icon-btn" type="submit" title="Import Recipes">Import</button>
+          </form>
+        <% } %>
+        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
+          <form class="pure-form" action="/recipes/clear" method="post" onsubmit="return confirm('Delete all imported recipes?');">
+            <button class="icon-btn danger" type="submit" title="Delete All Recipes">Delete All</button>
+          </form>
+        <% } %>
       </div>
     </div>
-    <form class="pure-form recipe-import-text" action="/recipes/import-text" method="post">
-      <label class="small-note" for="recipe_text">Plain text: recipe name on line 1, then "Component  PHR" (two spaces).</label>
-      <textarea id="recipe_text" name="recipe_text" rows="6" placeholder="Recipe Name&#10;Component A  12.5&#10;Component B  0.8" required></textarea>
-      <button class="icon-btn" type="submit" title="Import Recipe from Text">Add from text</button>
-    </form>
+    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+      <form class="pure-form recipe-import-text" action="/recipes/import-text" method="post">
+        <label class="small-note" for="recipe_text">Plain text: recipe name on line 1, then "Component  PHR" (two spaces).</label>
+        <textarea id="recipe_text" name="recipe_text" rows="6" placeholder="Recipe Name&#10;Component A  12.5&#10;Component B  0.8" required></textarea>
+        <button class="icon-btn" type="submit" title="Import Recipe from Text">Add from text</button>
+      </form>
+    <% } %>
     <% if (importedCount !== null) { %>
       <p class="small-note"><%= importedCount %> recipes imported.</p>
     <% } %>
@@ -65,14 +71,18 @@
               <% } %>
             </div>
             <div class="recipe-card-actions">
-              <button class="icon-btn icon-only" type="button" data-recipe-edit title="Edit recipe" aria-label="Edit recipe">
-                <span class="material-symbols-rounded" aria-hidden="true">edit</span>
-              </button>
-              <form class="inline-form" action="/recipes/<%= recipe.id %>/delete" method="post" onsubmit="return confirm('Delete this recipe?');">
-                <button class="icon-btn icon-only danger" type="submit" title="Delete recipe" aria-label="Delete recipe">
-                  <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+              <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+                <button class="icon-btn icon-only" type="button" data-recipe-edit title="Edit recipe" aria-label="Edit recipe">
+                  <span class="material-symbols-rounded" aria-hidden="true">edit</span>
                 </button>
-              </form>
+              <% } %>
+              <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
+                <form class="pure-form inline-form" action="/recipes/<%= recipe.id %>/delete" method="post" onsubmit="return confirm('Archive this recipe?');">
+                  <button class="icon-btn icon-only danger" type="submit" title="Archive recipe" aria-label="Archive recipe">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
+                </form>
+              <% } %>
             </div>
           </div>
         <% }); %>

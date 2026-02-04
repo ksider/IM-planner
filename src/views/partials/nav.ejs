@@ -3,7 +3,22 @@
   <div class="nav-links">
     <a href="/">Experiments</a>
     <a href="/recipes">Recipes</a>
-    <a href="/param-library">Parameters</a>
+    <% if (currentUser && (currentUser.role === "admin" || currentUser.role === "manager" || currentUser.role === "engineer")) { %>
+      <a href="/param-library">Parameters</a>
+    <% } %>
     <a href="/machines">Machines</a>
+    <% if (currentUser && currentUser.role === "admin") { %>
+      <a href="/admin">Admin</a>
+    <% } %>
   </div>
+  <% if (currentUser) { %>
+    <div class="nav-auth">
+      <span class="nav-user">
+        <a href="/me"><%= currentUser.name ? currentUser.name : currentUser.email %></a>
+      </span>
+      <form method="post" action="/auth/logout">
+        <button class="pure-button pure-button-primary" type="submit">Logout</button>
+      </form>
+    </div>
+  <% } %>
 </nav>

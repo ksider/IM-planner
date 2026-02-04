@@ -1,0 +1,63 @@
+<%- include('partials/head', { title: title }) %>
+<%- include('partials/nav') %>
+<div class="container">
+  <div class="card">
+    <h1 class="card-title">Profile</h1>
+    <% if (error) { %>
+      <div class="auth-error"><%= error %></div>
+    <% } %>
+    <% if (notice) { %>
+      <div class="auth-error"><%= notice %></div>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Personal Settings</h2>
+    <form class="pure-form pure-form-stacked" action="/me/name" method="post">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" value="<%= currentUser?.name ?? '' %>" placeholder="Your name">
+      <button class="pure-button pure-button-primary" type="submit">Update name</button>
+    </form>
+    <form class="pure-form pure-form-stacked" action="/me/password" method="post" style="margin-top: 1rem;">
+      <label for="current_password">Current password</label>
+      <input id="current_password" name="current_password" type="password" autocomplete="current-password" required>
+      <label for="new_password">New password</label>
+      <input id="new_password" name="new_password" type="password" autocomplete="new-password" required>
+      <label for="confirm_password">Confirm password</label>
+      <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
+      <button class="pure-button pure-button-primary" type="submit">Update password</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">My Experiments</h2>
+    <table class="pure-table table-compact">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Design</th>
+          <th>Seed</th>
+          <th>Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (experiments.length === 0) { %>
+          <tr>
+            <td colspan="5">No experiments assigned.</td>
+          </tr>
+        <% } %>
+        <% experiments.forEach((exp) => { %>
+          <tr>
+            <td><%= exp.id %></td>
+            <td><a href="/experiments/<%= exp.id %>"><%- formatInline(exp.name) %></a></td>
+            <td><span class="badge"><%= exp.design_type %></span></td>
+            <td><%= exp.seed %></td>
+            <td><%= new Date(exp.created_at).toLocaleDateString() %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('partials/foot') %>

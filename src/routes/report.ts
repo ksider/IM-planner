@@ -8,6 +8,7 @@ import {
   buildReportEditorSeed
 } from "../services/report_service.js";
 import { deleteReportConfig, getReportConfig, getReportDocument, upsertReportDocument } from "../repos/reports_repo.js";
+import { ensureExperimentAccess, ensureReportAccess } from "../middleware/experiment_access.js";
 
 const parseInclude = (raw: unknown) => {
   if (!raw) return null;
@@ -27,6 +28,10 @@ const parseIdList = (raw: unknown) => {
 
 export function createReportRouter(db: Db) {
   const router = express.Router();
+  const hasRole = (req: express.Request, roles: string[]) => roles.includes(req.user?.role ?? "");
+
+  router.use("/experiments/:id", ensureExperimentAccess(db));
+  router.use("/reports/:reportId", ensureReportAccess(db));
 
   router.get("/experiments/:id/report", (req, res) => {
     const experimentId = Number(req.params.id);
@@ -127,6 +132,9 @@ export function createReportRouter(db: Db) {
   });
 
   router.post("/reports/:reportId/editor", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const reportId = Number(req.params.reportId);
     const config = getReportConfig(db, reportId);
     if (!config) return res.status(404).send("Report not found");
@@ -138,6 +146,9 @@ export function createReportRouter(db: Db) {
   });
 
   router.post("/reports/:reportId/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager"])) {
+      return res.status(403).send("Forbidden");
+    }
     const reportId = Number(req.params.reportId);
     const config = getReportConfig(db, reportId);
     if (!config) return res.status(404).send("Report not found");

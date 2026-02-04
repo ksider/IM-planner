@@ -1,7 +1,18 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
+import helmet from "helmet";
+import { fileURLToPath } from "url";
 import { openDb } from "./db.js";
 import { ensureSeedParams } from "./services/seed.js";
+import { ensureAdminUser } from "./services/admin_seed.js";
+import { configureAuth } from "./services/auth_setup.js";
+import { createAuthRouter } from "./routes/auth.js";
+import { ensureAuthenticated, ensureAdmin } from "./middleware/auth.js";
+import { createAdminRouter } from "./routes/admin.js";
+import { createHttpsRedirect } from "./middleware/https.js";
+import { createAuditRouter } from "./routes/audit.js";
+import { createProfileRouter } from "./routes/profile.js";
 import { createHomeRouter } from "./routes/home.js";
 import { createRecipesRouter } from "./routes/recipes.js";
 import { createExperimentsRouter } from "./routes/experiments.js";
@@ -10,9 +21,12 @@ import { createQualificationRouter } from "./routes/qualification.js";
 import { createMachinesRouter } from "./routes/machines.js";
 import { createReportRouter } from "./routes/report.js";
 
-const app = express();
-const db = openDb();
-ensureSeedParams(db);
+export function createApp() {
+  const app = express();
+  const db = openDb();
+  ensureSeedParams(db);
+  ensureAdminUser(db);
+  configureAuth(app, db);
 
 app.locals.formatNumber = (value: unknown, maxDecimals = 3) => {
   const num = typeof value === "number" ? value : Number(value);
@@ -61,12 +75,46 @@ const publicPath = path.resolve(process.cwd(), "src", "public");
 
 app.set("view engine", "ejs");
 app.set("views", viewsPath);
+app.set("trust proxy", process.env.TRUST_PROXY === "true");
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
+  })
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(publicPath));
 app.use("/vendor", express.static(path.resolve(process.cwd(), "node_modules")));
 
+app.use(createHttpsRedirect(db));
+app.use((req, res, next) => {
+  res.locals.currentUser = req.user ?? null;
+  next();
+});
+
+app.use("/auth", createAuthRouter(db));
+
+app.use((req, res, next) => {
+  if (req.user?.temp_password) {
+    const path = req.path;
+    if (
+      path !== "/auth/change-password" &&
+      path !== "/auth/logout" &&
+      !path.startsWith("/auth/login")
+    ) {
+      return res.redirect("/auth/change-password");
+    }
+  }
+  return next();
+});
+
+app.use(ensureAuthenticated);
+app.use("/admin", ensureAdmin, createAdminRouter(db));
+app.use("/audit", createAuditRouter(db));
+app.use(createProfileRouter(db));
 app.use(createHomeRouter(db));
 app.use(createRecipesRouter(db));
 app.use(createExperimentsRouter(db));
@@ -75,12 +123,19 @@ app.use(createQualificationRouter(db));
 app.use(createMachinesRouter(db));
 app.use(createReportRouter(db));
 
-app.use((_req, res) => {
-  res.status(404).send("Not found");
-});
+  app.use((_req, res) => {
+    res.status(404).send("Not found");
+  });
 
-const PORT = Number(process.env.PORT || 3000);
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`IM-DOE Planner running on http://localhost:${PORT}`);
-});
+  return app;
+}
+
+const currentPath = fileURLToPath(import.meta.url);
+if (process.argv[1] === currentPath) {
+  const app = createApp();
+  const PORT = Number(process.env.PORT || 3000);
+  app.listen(PORT, () => {
+    // eslint-disable-next-line no-console
+    console.log(`IM-DOE Planner running on http://localhost:${PORT}`);
+  });
+}

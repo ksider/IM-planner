@@ -11,6 +11,15 @@ yarn-error.log*
 *.db
 .env
 .env.*
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+*.der
+*.csr
+*secret*
+*credentials*
 .vscode/
 .idea/
 doe.sqlite

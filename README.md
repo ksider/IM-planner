@@ -32,6 +32,14 @@ npm run dev
 ```
 Open `http://localhost:3000`.
 
+## Auth Env (Stage 0 Prep)
+Create a `.env` file based on `.env.example` and set:
+- `SESSION_SECRET`
+- `ADMIN_EMAIL`
+- `ADMIN_TEMP_PASSWORD`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
 ## Core Flows
 1) Create an experiment with recipes and machine assignment.
 2) Run the 6‑step Scientific Molding qualification (each step has its own setup + runs).

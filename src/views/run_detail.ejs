@@ -125,10 +125,14 @@
         <label class="pure-checkbox">
           <input type="checkbox" name="done" <%= run.done ? 'checked' : '' %>> Done
         </label>
-        <label class="pure-checkbox">
-          <input type="checkbox" name="exclude" <%= run.exclude_from_analysis ? 'checked' : '' %>> Exclude from analysis
-        </label>
-        <button class="pure-button pure-button-primary" type="submit">Save Run</button>
+        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+          <label class="pure-checkbox">
+            <input type="checkbox" name="exclude" <%= run.exclude_from_analysis ? 'checked' : '' %>> Exclude from analysis
+          </label>
+        <% } %>
+        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer' || currentUser.role === 'operator')) { %>
+          <button class="pure-button pure-button-primary" type="submit">Save Run</button>
+        <% } %>
       </div>
     </div>
   </form>

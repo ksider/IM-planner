@@ -4,6 +4,7 @@ export type Recipe = {
   id: number;
   name: string;
   description: string | null;
+  archived_at: string | null;
   created_at: string;
 };
 
@@ -13,8 +14,11 @@ export type RecipeComponent = {
   phr: number;
 };
 
-export function listRecipes(db: Db): Recipe[] {
-  return db.prepare("SELECT * FROM recipes ORDER BY id DESC").all() as Recipe[];
+export function listRecipes(db: Db, includeArchived = false): Recipe[] {
+  if (includeArchived) {
+    return db.prepare("SELECT * FROM recipes ORDER BY id DESC").all() as Recipe[];
+  }
+  return db.prepare("SELECT * FROM recipes WHERE archived_at IS NULL ORDER BY id DESC").all() as Recipe[];
 }
 
 export function getRecipe(db: Db, id: number): Recipe | undefined {
@@ -54,7 +58,7 @@ export function replaceRecipeComponents(db: Db, recipeId: number, components: Re
 }
 
 export function deleteRecipe(db: Db, recipeId: number) {
-  db.prepare("DELETE FROM recipes WHERE id = ?").run(recipeId);
+  db.prepare("UPDATE recipes SET archived_at = ? WHERE id = ?").run(new Date().toISOString(), recipeId);
 }
 
 export function deleteAllRecipes(db: Db) {

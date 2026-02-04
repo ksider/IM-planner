@@ -1,73 +1,60 @@
-Отлично, понял требования. Ниже обновлённый план с учётом пожеланий.
+﻿Пошаговый план разработки (внедрение по этапам)
 
-1) Конфигурация отчёта (галки включения секций)
+Этап 0. Подготовка
+1. Зафиксировать env-переменные: ADMIN_EMAIL, ADMIN_TEMP_PASSWORD, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET.
+2. Определить начальные protected‑routes (страницы и API).
+3. Утвердить названия таблиц и полей (users, admin_settings, sessions, audit_log).
 
-В генераторе отчёта добавить форму:
-include_qualification (по умолчанию ON)
-include_doe (по умолчанию OFF)
-include_outputs
-include_defects
-include_raw_runs (appendix)
-Можно сохранить выбранные галки в report_settings (или localStorage).
-2) Обязательная шапка
+Этап 1. База данных и первый админ
+1. Добавить миграции для таблиц users, admin_settings, sessions, audit_log.
+2. Реализовать скрипт создания первого админа при старте (если отсутствует).
+3. Добавить флаг temp_password и проверку “нужно сменить пароль”.
 
-Рецептура: отрисовать как “карточку” в стиле текущих рецептов (название + компоненты PHR).
-Параметры машины: текстовый блок ввода (textarea или editable table) — чтобы вручную внести пресс/машину.
-3) Вывод квалификации — не по шагам, а оптимальные параметры
-Собираем итоговые оптимальные значения:
+Этап 2. Сессии и локальный логин
+1. Подключить session store (SQLite) и Passport local strategy.
+2. Реализовать POST /auth/login и POST /auth/logout.
+3. Middleware проверки аутентификации для защищённых маршрутов.
+4. Экран логина + обработка ошибок.
 
-Скорость инжекции: из шага 1 (recommended_inj_speed).
-Окно процесса: из шага 4 (window_low/high temp/pressure + center).
-Gate seal time: из шага 5.
-Cooling time: min при Cosmetic OK (шаг 6).
-Показываем как “Recommended Settings” (карточками/табличкой).
-Графики‑подтверждения:
-Rheology chart (step 1).
-Process window chart (step 4).
-4) DOE — опционально
+Этап 3. Смена временного пароля
+1. Экран смены пароля (обязательный при temp_password=true).
+2. POST /auth/change-password.
+3. Снять temp_password после успешной смены.
 
-В HTML отчёте секция DOE показывается только если отмечено.
-По умолчанию OFF.
-Если включено:
-дизайн, факторы, run count,
-summary outputs, heatmap/scatter.
-5) Выходные форматы
+Этап 4. Google OAuth с доменным ограничением
+1. Подключить passport-google-oauth20.
+2. Реализовать /auth/google и /auth/google/callback.
+3. Проверка hd/email домена против admin_settings.allowed_domain.
+4. Связать или создать пользователя по google_sub/email.
 
-HTML отчёт: /experiments/:id/report?include=...
-PDF: кнопка/ссылка “Download PDF” → /experiments/:id/report.pdf?include=...
-CSV: /experiments/:id/report.csv?include=...
-можно разбить на вкладки/несколько CSV (если нужно): qualification.csv, doe.csv, outputs.csv.
-6) Данные / структура ReportData
+Этап 5. Админка и управление доменом
+1. Страница админки (доступ только admin).
+2. Настройка allowed_domain через UI.
+3. Запись изменений в audit_log.
 
-type ReportData = {
-  experiment;
-  recipes;
-  machineNotes; // текст
-  settings: {
-    recommended_inj_speed;
-    window; // low/high + center
-    gate_seal_time;
-    min_cooling_time;
-  };
-  charts: { rheology; window; };
-  doe?: { design, factors, runs, charts, summaries };
-  outputs?: { fields, defects };
-};
-7) Реализация (в коде)
+Этап 6. Управление пользователями
+1. Таблица пользователей (list + search).
+2. Редактирование пользователя (email/статус/role placeholder).
+3. Бан и удаление пользователя.
+4. Forced‑logout: удаление активных сессий.
+5. Audit log на все действия.
 
-report_service.ts:
-buildReport(experimentId, options)
-renderHtml(reportData)
-toCsv(reportData, options)
-report.ts:
-GET /experiments/:id/report
-GET report.pdf
-GET report.csv
-В HTML рендере: section toggles.
-Чтобы двигаться дальше, предлагаю:
+Этап 7. Безопасность
+1. Rate limit для /auth/login.
+2. Secure/HttpOnly cookies, SameSite=Lax.
+3. HTTPS (dev: mkcert или self‑signed; prod: reverse‑proxy/managed).
 
-Согласовать точный вид шапки рецептуры (можно скопировать из recipes view).
-Решить, где хранить “параметры машины”:
-просто textarea в отчёте (не сохраняется),
-или сохранять в БД (в отдельной таблице/JSON).
-Скажи, как хочешь по пунктам 1–2, и я начну правки.
+Этап 8. Тестирование
+1. Unit: доменная проверка, bcrypt, temp_password.
+2. Integration: login/logout, google callback, ban+forced logout.
+3. Admin: CRUD пользователей, домен.
+
+Этап 9. Подготовка к ролям (этап 2)
+1. Оставить поле role.
+2. Спланировать role‑guard middleware и матрицу доступа.
+
+Этап 10. Связь экспериментов с пользователями (этап 2)
+1. Добавить поле owner_user_id в experiments (с FK на users).
+2. Заполнять owner_user_id при создании эксперимента.
+3. Ограничить просмотр/редактирование экспериментов владельцем (или ролью выше).
+4. Админ (или спец‑роль) может переназначить владельца.

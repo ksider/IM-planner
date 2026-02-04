@@ -1,0 +1,15 @@
+<%- include("partials/head", { title: title }) %>
+<div class="container">
+  <div class="card auth-card">
+    <h2 class="card-title">Reset password</h2>
+    <% if (notice) { %>
+      <div class="auth-error"><%= notice %></div>
+    <% } %>
+    <form method="post" action="/auth/request-reset" class="pure-form pure-form-stacked">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="username" required>
+      <button type="submit" class="pure-button pure-button-primary">Request reset</button>
+    </form>
+  </div>
+</div>
+<%- include("partials/foot") %>

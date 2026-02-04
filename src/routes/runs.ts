@@ -2,6 +2,7 @@ import express from "express";
 import type { Db } from "../db.js";
 import { getRun, getNextPrevRunIds, listRunValues, updateRunStatus } from "../repos/runs_repo.js";
 import { getExperiment } from "../repos/experiments_repo.js";
+import { ensureRunAccess } from "../middleware/experiment_access.js";
 import { listParamDefinitionsByKind, listParamDefinitions, listParamConfigs } from "../repos/params_repo.js";
 import { getRecipe, getRecipeComponents } from "../repos/recipes_repo.js";
 import {
@@ -12,6 +13,9 @@ import {
 
 export function createRunsRouter(db: Db) {
   const router = express.Router();
+  const hasRole = (req: express.Request, roles: string[]) => roles.includes(req.user?.role ?? "");
+
+  router.use("/runs/:id", ensureRunAccess(db));
 
   router.get("/runs/:id", (req, res) => {
     const runId = Number(req.params.id);
@@ -76,6 +80,9 @@ export function createRunsRouter(db: Db) {
   });
 
   router.post("/runs/:id", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer", "operator"])) {
+      return res.status(403).send("Forbidden");
+    }
     const runId = Number(req.params.id);
     const run = getRun(db, runId);
     if (!run) return res.status(404).send("Run not found");
@@ -112,6 +119,9 @@ export function createRunsRouter(db: Db) {
 
     const done = req.body.done ? 1 : 0;
     const exclude = req.body.exclude ? 1 : 0;
+    if (exclude && !hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     updateRunStatus(db, runId, done, exclude);
 
     res.redirect(`/runs/${runId}`);

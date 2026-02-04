@@ -12,11 +12,11 @@ import { listMachines } from "../repos/machines_repo.js";
 import {
   getExperiment,
   getExperimentRecipes,
-  deleteExperiment,
   updateExperiment,
   getDesignMetadata,
   upsertDesignMetadata
 } from "../repos/experiments_repo.js";
+import { ensureExperimentAccess } from "../middleware/experiment_access.js";
 import { getMachine, listMachines } from "../repos/machines_repo.js";
 import { createDoeStudy, deleteDoeStudy, getDoeStudy, listDoeStudies } from "../repos/doe_repo.js";
 import { listQualSummaries } from "../repos/qual_repo.js";
@@ -50,11 +50,23 @@ import {
 } from "../services/analysis_service.js";
 import { sd } from "../domain/stats.js";
 import { toCsv } from "../lib/csv.js";
+import { archiveExperiment, updateExperimentOwner } from "../repos/experiments_repo.js";
+import { listUsers } from "../repos/users_repo.js";
+
+// Local helper for role checks in this router.
+function hasRole(req: express.Request, roles: string[]) {
+  return roles.includes(req.user?.role ?? "");
+}
 
 export function createExperimentsRouter(db: Db) {
   const router = express.Router();
 
+  router.use("/experiments/:id", ensureExperimentAccess(db));
+
   router.get("/experiments/new", (_req, res) => {
+    if (!hasRole(_req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const recipes = listRecipes(db).map((recipe) => ({
       ...recipe,
       components: getRecipeComponents(db, recipe.id)
@@ -64,6 +76,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const recipeIds = Array.isArray(req.body.recipe_ids)
       ? req.body.recipe_ids.map((id: string) => Number(id))
       : req.body.recipe_ids
@@ -74,7 +89,8 @@ export function createExperimentsRouter(db: Db) {
       name: req.body.name,
       notes: req.body.notes || null,
       recipe_ids: recipeIds,
-      machine_id: req.body.machine_id ? Number(req.body.machine_id) : null
+      machine_id: req.body.machine_id ? Number(req.body.machine_id) : null,
+      owner_user_id: req.user?.id ?? null
     });
     ensureQualificationDefaults(db, experimentId);
 
@@ -93,6 +109,9 @@ export function createExperimentsRouter(db: Db) {
     const recipeNameById = new Map(listRecipes(db).map((recipe) => [recipe.id, recipe.name]));
     const recipeNames = recipeIds.map((id) => recipeNameById.get(id)).filter(Boolean);
     const reports = listReportConfigs(db, experimentId);
+    // Owner selection is visible only to admin/manager.
+    const canManageOwner = req.user?.role === "admin" || req.user?.role === "manager";
+    const users = canManageOwner ? listUsers(db) : [];
     res.render("experiment_detail", {
       experiment,
       qualSummaries,
@@ -100,7 +119,9 @@ export function createExperimentsRouter(db: Db) {
       machines,
       selectedMachine,
       recipeNames,
-      reports
+      reports,
+      users,
+      canManageOwner
     });
   });
 
@@ -115,6 +136,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeName = String(req.body.name || "").trim();
     const existing = listDoeStudies(db, experimentId);
@@ -139,6 +163,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/reports", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const nameRaw = String(req.body.name || "").trim();
     const executors = String(req.body.executors || "").trim() || null;
@@ -165,6 +192,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/reports/:reportId", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const reportId = Number(req.params.reportId);
     const existing = getReportConfig(db, reportId);
@@ -194,6 +224,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/clone", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const doe = getDoeStudy(db, doeId);
@@ -244,6 +277,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const doe = getDoeStudy(db, doeId);
@@ -472,6 +508,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/params", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const code = String(req.body.code || "").trim();
@@ -492,12 +531,18 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
-    deleteExperiment(db, experimentId);
+    archiveExperiment(db, experimentId);
     res.redirect("/");
   });
 
   router.post("/experiments/:id/machine", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const experiment = getExperiment(db, experimentId);
     if (!experiment) return res.status(404).send("Experiment not found");
@@ -508,6 +553,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/update", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const experiment = getExperiment(db, experimentId);
     if (!experiment) return res.status(404).send("Experiment not found");
@@ -523,7 +571,22 @@ export function createExperimentsRouter(db: Db) {
     res.redirect(`/experiments/${experimentId}`);
   });
 
+  // Owner can be changed only by admin/manager.
+  router.post("/experiments/:id/owner", (req, res) => {
+    if (!hasRole(req, ["admin", "manager"])) {
+      return res.status(403).send("Forbidden");
+    }
+    const experimentId = Number(req.params.id);
+    const ownerUserId = req.body?.owner_user_id ? Number(req.body.owner_user_id) : null;
+    if (!Number.isFinite(experimentId)) return res.status(400).send("Invalid experiment");
+    updateExperimentOwner(db, experimentId, Number.isFinite(ownerUserId) ? ownerUserId : null);
+    res.redirect(`/experiments/${experimentId}`);
+  });
+
   router.post("/experiments/:id/doe/:doeId/configs", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const experiment = getExperiment(db, experimentId);
@@ -650,6 +713,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/tags", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const paramId = Number(req.body.param_id || 0);
@@ -662,6 +728,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/analysis-fields/standard", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const wantsJson =
@@ -722,6 +791,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/analysis-fields/custom", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const wantsJson =
@@ -770,6 +842,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/analysis-fields/custom/active", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const wantsJson =
@@ -793,6 +868,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/analysis-fields/new", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const wantsJson =
@@ -866,6 +944,9 @@ export function createExperimentsRouter(db: Db) {
   });
 
   router.post("/experiments/:id/doe/:doeId/generate", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const experimentId = Number(req.params.id);
     const doeId = Number(req.params.doeId);
     const experiment = getExperiment(db, experimentId);

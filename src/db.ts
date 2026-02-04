@@ -1,12 +1,11 @@
 import Database from "better-sqlite3";
 import path from "path";
 
-const DB_PATH = path.resolve(process.cwd(), "im_doe.sqlite");
-
 export type Db = Database.Database;
 
 export function openDb(): Db {
-  const db = new Database(DB_PATH);
+  const dbPath = path.resolve(process.cwd(), process.env.DB_PATH || "im_doe.sqlite");
+  const db = new Database(dbPath);
   db.pragma("foreign_keys = ON");
   initDb(db);
   return db;
@@ -19,10 +18,48 @@ function hasColumn(db: Db, table: string, column: string): boolean {
 
 function initDb(db: Db) {
   db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT,
+      google_sub TEXT,
+      role TEXT,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      temp_password INTEGER NOT NULL DEFAULT 0,
+      reset_requested_at TEXT,
+      created_at TEXT NOT NULL,
+      last_login_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS admin_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      allowed_domain TEXT,
+      require_https INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_by INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      sid TEXT PRIMARY KEY,
+      user_id INTEGER,
+      expires_at TEXT,
+      data TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_user_id INTEGER,
+      action TEXT NOT NULL,
+      target_user_id INTEGER,
+      details_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE SET NULL
+    );
     CREATE TABLE IF NOT EXISTS recipes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       description TEXT,
+      archived_at TEXT,
       created_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS recipe_components (
@@ -60,11 +97,14 @@ function initDb(db: Db) {
       created_at TEXT NOT NULL,
       notes TEXT,
       machine_id INTEGER,
+      owner_user_id INTEGER,
+      archived_at TEXT,
       center_points INTEGER DEFAULT 3,
       max_runs INTEGER DEFAULT 200,
       replicate_count INTEGER DEFAULT 1,
       recipe_as_block INTEGER DEFAULT 0,
-      FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE SET NULL
+      FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE SET NULL,
+      FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL
     );
     CREATE TABLE IF NOT EXISTS experiment_recipes (
       experiment_id INTEGER NOT NULL,
@@ -252,6 +292,19 @@ function initDb(db: Db) {
     );
   `);
 
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_actor_user_id ON audit_log(actor_user_id);
+  `);
+
+  const adminSettingsCount = db
+    .prepare("SELECT COUNT(*) as count FROM admin_settings")
+    .get() as { count: number };
+  if (adminSettingsCount.count === 0) {
+    db.prepare("INSERT INTO admin_settings (allowed_domain) VALUES (NULL)").run();
+  }
+
   // Safe migrations for new columns.
   const experimentColumns = [
     ["center_points", "ALTER TABLE experiments ADD COLUMN center_points INTEGER DEFAULT 3"],
@@ -265,6 +318,22 @@ function initDb(db: Db) {
       db.exec(sql);
     }
   }
+  if (!hasColumn(db, "experiments", "owner_user_id")) {
+    db.exec("ALTER TABLE experiments ADD COLUMN owner_user_id INTEGER");
+  }
+  if (!hasColumn(db, "experiments", "archived_at")) {
+    db.exec("ALTER TABLE experiments ADD COLUMN archived_at TEXT");
+  }
+  if (!hasColumn(db, "recipes", "archived_at")) {
+    db.exec("ALTER TABLE recipes ADD COLUMN archived_at TEXT");
+  }
+
+  const adminRow = db
+    .prepare("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1")
+    .get() as { id: number } | undefined;
+  if (adminRow) {
+    db.prepare("UPDATE experiments SET owner_user_id = ? WHERE owner_user_id IS NULL").run(adminRow.id);
+  }
 
   if (!hasColumn(db, "analysis_fields", "is_standard")) {
     db.exec("ALTER TABLE analysis_fields ADD COLUMN is_standard INTEGER NOT NULL DEFAULT 0");
@@ -274,6 +343,15 @@ function initDb(db: Db) {
   }
   if (!hasColumn(db, "analysis_fields", "doe_id")) {
     db.exec("ALTER TABLE analysis_fields ADD COLUMN doe_id INTEGER");
+  }
+  if (!hasColumn(db, "users", "reset_requested_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN reset_requested_at TEXT");
+  }
+  if (!hasColumn(db, "users", "name")) {
+    db.exec("ALTER TABLE users ADD COLUMN name TEXT");
+  }
+  if (!hasColumn(db, "admin_settings", "require_https")) {
+    db.exec("ALTER TABLE admin_settings ADD COLUMN require_https INTEGER NOT NULL DEFAULT 0");
   }
   if (!hasColumn(db, "param_configs", "doe_id")) {
     db.exec("ALTER TABLE param_configs ADD COLUMN doe_id INTEGER");

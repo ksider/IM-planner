@@ -35,9 +35,16 @@ import {
 } from "../repos/params_repo.js";
 import { getMachine } from "../repos/machines_repo.js";
 import { listMachineParams } from "../repos/machine_params_repo.js";
+import { ensureExperimentAccess } from "../middleware/experiment_access.js";
+
+function hasRole(req: express.Request, roles: string[]) {
+  return roles.includes(req.user?.role ?? "");
+}
 
 export function createQualificationRouter(db: Db) {
   const router = express.Router();
+
+  router.use("/experiments/:id", ensureExperimentAccess(db));
 
   router.get("/experiments/:id/qualification", (req, res) => {
     const experimentId = Number(req.params.id);
@@ -213,6 +220,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/qual-runs/:id/value", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer", "operator"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const runId = Number(req.params.id);
     const { field_id, value } = req.body as { field_id: number; value: unknown };
     const run = getQualRun(db, runId);
@@ -230,6 +240,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/qual-runs/:id/flags", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer", "operator"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const runId = Number(req.params.id);
     const done = Number(req.body.done ? 1 : 0);
     const exclude = Number(req.body.exclude ? 1 : 0);
@@ -238,6 +251,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/runs", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const step = getQualStep(db, experimentId, stepNumber);
@@ -249,6 +265,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/runs/:runId/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const runId = Number(req.params.runId);
@@ -262,6 +281,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/cavities", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     if (stepNumber !== 2) return res.status(400).json({ error: "Not cavity step" });
@@ -314,6 +336,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/cavities/:index/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const index = Number(req.params.index);
@@ -333,6 +358,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/cavity-fields", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     if (stepNumber !== 2) return res.status(400).json({ error: "Not cavity step" });
@@ -397,6 +425,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/pressure-points", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     if (stepNumber !== 3) return res.status(400).json({ error: "Not pressure step" });
@@ -464,6 +495,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/pressure-points/:fieldId/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const fieldId = Number(req.params.fieldId);
@@ -495,6 +529,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/pressure-fields", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     if (stepNumber !== 3) return res.status(400).json({ error: "Not pressure step" });
@@ -548,6 +585,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/pressure-fields/:suffix/update", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const suffix = String(req.params.suffix || "").trim();
@@ -577,6 +617,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/pressure-fields/:suffix/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const suffix = String(req.params.suffix || "").trim();
@@ -597,6 +640,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/fields", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const step = getQualStep(db, experimentId, stepNumber);
@@ -638,6 +684,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/fields/import", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const step = getQualStep(db, experimentId, stepNumber);
@@ -682,6 +731,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/fields/:fieldId", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const fieldId = Number(req.params.fieldId);
     const updates: Record<string, unknown> = {
       code: String(req.body.code || "").trim(),
@@ -700,6 +752,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/fields/:fieldId/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const fieldId = Number(req.params.fieldId);
     if (!Number.isFinite(fieldId)) return res.status(400).json({ error: "Invalid field id" });
@@ -733,6 +788,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/cavity-fields/:suffix/update", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const suffix = String(req.params.suffix || "").trim();
@@ -759,6 +817,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/cavity-fields/:suffix/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const suffix = String(req.params.suffix || "").trim();
@@ -779,6 +840,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/experiments/:id/qualification/:step/settings", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const experimentId = Number(req.params.id);
     const stepNumber = Number(req.params.step);
     const step = getQualStep(db, experimentId, stepNumber);
@@ -843,6 +907,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/param-library", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const code = String(req.body.code || "").trim();
     if (!code) return res.status(400).json({ error: "Code required" });
     const id = createParamDefinition(db, {
@@ -862,6 +929,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/param-library/:id", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
     updateParamDefinition(db, id, {
@@ -879,6 +949,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.post("/param-library/:id/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
     deleteParamDefinition(db, id);
@@ -886,6 +959,9 @@ export function createQualificationRouter(db: Db) {
   });
 
   router.get("/param-library", (_req, res) => {
+    if (!hasRole(_req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const params = listGlobalParamDefinitions(db);
     res.render("param_library", { params });
   });

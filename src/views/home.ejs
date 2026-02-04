@@ -4,7 +4,9 @@
   <div class="card">
     <h1 class="card-title">Experiments</h1>
     <p class="small-note">Design, run, and analyze injection molding detailed optimization plans.</p>
-    <a class="pure-button pure-button-primary" href="/experiments/new">Create Experiment</a>
+    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+      <a class="pure-button pure-button-primary" href="/experiments/new">Create Experiment</a>
+    <% } %>
   </div>
 
   <div class="card">
@@ -34,9 +36,11 @@
             <td><%= exp.seed %></td>
             <td><%= new Date(exp.created_at).toLocaleDateString() %></td>
             <td>
-              <form action="/experiments/<%= exp.id %>/delete" method="post" onsubmit="return confirm('Delete this experiment?');">
-                <button class="pure-button" type="submit">Delete</button>
-              </form>
+              <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager')) { %>
+                <form class="pure-form" action="/experiments/<%= exp.id %>/delete" method="post" onsubmit="return confirm('Archive this experiment?');">
+                  <button class="pure-button" type="submit">Archive</button>
+                </form>
+              <% } %>
             </td>
           </tr>
         <% }); %>

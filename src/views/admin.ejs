@@ -1,0 +1,311 @@
+<%- include("partials/head", { title: title }) %>
+<%- include("partials/nav", { currentUser: currentUser }) %>
+<div class="container">
+  <div class="card">
+    <h2 class="card-title">Admin Settings</h2>
+    <div class="admin-actions">
+      <button class="icon-btn icon-only" type="button" id="openSettingsDialog" title="Settings">
+        <span class="material-symbols-rounded" aria-hidden="true">settings</span>
+      </button>
+      <button class="icon-btn icon-only" type="button" id="openAddUserDialog" title="Add user">
+        <span class="material-symbols-rounded" aria-hidden="true">person_add</span>
+      </button>
+      <a class="icon-btn icon-only" href="/audit" title="Audit log">
+        <span class="material-symbols-rounded" aria-hidden="true">fact_check</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Users</h2>
+    <% if (notice) { %>
+      <div class="toast toast-success toast-inline">
+        <span><%= notice %></span>
+        <button type="button" class="toast-close" aria-label="Close">×</button>
+      </div>
+    <% } %>
+    <% if (error) { %>
+      <div class="toast toast-error toast-inline">
+        <span><%= error %></span>
+        <button type="button" class="toast-close" aria-label="Close">×</button>
+      </div>
+    <% } %>
+    <div id="adminToastArea"></div>
+    <div class="table-wrap">
+      <table class="pure-table pure-table-striped">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% users.forEach(function(user) { %>
+            <tr class="<%= user.status === 'DISABLED' ? 'row-banned' : '' %>">
+              <td>
+                <form method="post" action="/admin/users/<%= user.id %>" class="pure-form inline-form autosave-form ajax-form">
+                  <span class="status-dot <%= user.status === 'ACTIVE' ? 'online' : 'offline' %>" title="<%= user.status %>"></span>
+                  <input name="name" type="text" value="<%= user.name ?? '' %>" placeholder="Name">
+                  <input name="email" type="email" value="<%= user.email %>">
+              </td>
+              <td>
+                <select name="role">
+                  <option value="" <%= !user.role ? 'selected' : '' %>>none</option>
+                  <option value="admin" <%= user.role === 'admin' ? 'selected' : '' %>>admin</option>
+                  <option value="manager" <%= user.role === 'manager' ? 'selected' : '' %>>manager</option>
+                  <option value="engineer" <%= user.role === 'engineer' ? 'selected' : '' %>>engineer</option>
+                  <option value="operator" <%= user.role === 'operator' ? 'selected' : '' %>>operator</option>
+                  <option value="viewer" <%= user.role === 'viewer' ? 'selected' : '' %>>viewer</option>
+                </select>
+              </td>
+              <td>
+                  <button type="submit" class="pure-button">Save</button>
+                </form>
+                <form method="post" action="/admin/users/<%= user.id %>/reset-password" class="pure-form inline-form reset-form">
+                  <input type="hidden" name="email" value="<%= user.email %>">
+                  <button type="submit" class="pure-button reset-btn">
+                    Reset
+                    <% if (user.reset_requested_at) { %>
+                      <span class="alert-dot" title="Reset requested"></span>
+                    <% } %>
+                  </button>
+                  <div class="reset-toast" hidden>
+                    <span class="reset-text"></span>
+                    <button type="button" class="reset-close">×</button>
+                  </div>
+                </form>
+                <% if (user.status === 'DISABLED') { %>
+                  <form method="post" action="/admin/users/<%= user.id %>/unban" class="pure-form inline-form ajax-form">
+                    <button type="submit" class="pure-button">Unban</button>
+                  </form>
+                <% } else { %>
+                  <form method="post" action="/admin/users/<%= user.id %>/ban" class="pure-form inline-form ajax-form">
+                    <button type="submit" class="pure-button button-warn">Ban</button>
+                  </form>
+                <% } %>
+                <form method="post" action="/admin/users/<%= user.id %>/force-logout" class="pure-form inline-form ajax-form">
+                  <button type="submit" class="pure-button">Force logout</button>
+                </form>
+                <form method="post" action="/admin/users/<%= user.id %>/delete" class="pure-form inline-form ajax-form" onsubmit="return confirm('Delete user?');">
+                  <button type="submit" class="pure-button button-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Experiments</h2>
+    <div class="table-wrap">
+      <table class="pure-table pure-table-striped">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Owner</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% experiments.forEach(function(exp) { %>
+            <tr>
+              <td><%= exp.id %></td>
+              <td><%= exp.name %></td>
+              <td>
+                <form method="post" action="/admin/experiments/<%= exp.id %>/owner" class="pure-form inline-form autosave-form ajax-form">
+                  <select name="owner_user_id">
+                    <option value="">No owner</option>
+                    <% users.forEach(function(user) { %>
+                      <option value="<%= user.id %>" <%= exp.owner_user_id === user.id ? 'selected' : '' %>>
+                        <%= user.name ? user.name : user.email %>
+                      </option>
+                    <% }); %>
+                  </select>
+                  <button type="submit" class="pure-button">Update</button>
+                </form>
+              </td>
+              <td>
+                <% if (exp.archived_at) { %>
+                  <span class="badge">archived</span>
+                  <form method="post" action="/admin/experiments/<%= exp.id %>/restore" class="pure-form inline-form autosave-form ajax-form">
+                    <select name="owner_user_id">
+                      <option value="">No owner</option>
+                      <% users.forEach(function(user) { %>
+                        <option value="<%= user.id %>"><%= user.name ? user.name : user.email %></option>
+                      <% }); %>
+                    </select>
+                    <button type="submit" class="pure-button">Restore</button>
+                  </form>
+                <% } else { %>
+                  active
+                <% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<%- include("partials/foot") %>
+
+<dialog class="modal-frame" id="settingsDialog">
+  <div class="modal-header">
+    <strong>Settings</strong>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+  <div class="modal-body">
+    <form method="post" action="/admin/domain" class="pure-form ajax-form">
+      <label for="allowed_domain">Allowed Google domain</label>
+      <input id="allowed_domain" name="allowed_domain" type="text" value="<%= settings.allowed_domain ?? '' %>" placeholder="example.com">
+      <button type="submit" class="pure-button pure-button-primary">Save</button>
+    </form>
+    <form method="post" action="/admin/https" class="pure-form ajax-form">
+      <label class="pure-checkbox">
+        <input type="checkbox" name="require_https" <%= settings.require_https ? 'checked' : '' %>>
+        Require HTTPS (only useful behind a reverse proxy)
+      </label>
+      <button type="submit" class="pure-button">Update</button>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="modal-frame" id="addUserDialog">
+  <div class="modal-header">
+    <strong>Add User</strong>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+  <div class="modal-body">
+    <form method="post" action="/admin/users" class="pure-form pure-form-stacked">
+      <label for="new_user_name">Name</label>
+      <input id="new_user_name" name="name" type="text" placeholder="User name">
+      <label for="new_user_email">Email</label>
+      <input id="new_user_email" name="email" type="email" placeholder="user@example.com" required>
+      <label for="new_user_role">Role</label>
+      <select id="new_user_role" name="role">
+        <option value="">role (optional)</option>
+        <option value="admin">admin</option>
+        <option value="manager">manager</option>
+        <option value="engineer">engineer</option>
+        <option value="operator">operator</option>
+        <option value="viewer">viewer</option>
+      </select>
+      <label for="new_user_status">Status</label>
+      <select id="new_user_status" name="status">
+        <option value="ACTIVE">ACTIVE</option>
+        <option value="DISABLED">DISABLED</option>
+      </select>
+      <button type="submit" class="pure-button pure-button-primary">Create</button>
+    </form>
+    <p class="muted">If email is not configured, the temporary password will be shown after creation.</p>
+  </div>
+</dialog>
+
+<script>
+  const settingsDialog = document.getElementById('settingsDialog');
+  const addUserDialog = document.getElementById('addUserDialog');
+  document.getElementById('openSettingsDialog')?.addEventListener('click', () => settingsDialog?.showModal());
+  document.getElementById('openAddUserDialog')?.addEventListener('click', () => addUserDialog?.showModal());
+  document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      settingsDialog?.close();
+      addUserDialog?.close();
+    });
+  });
+
+
+  // Auto-save admin edits (except user creation).
+  const autosaveTimers = new Map();
+  document.querySelectorAll('.autosave-form').forEach((form) => {
+    form.addEventListener('change', () => {
+      const existing = autosaveTimers.get(form);
+      if (existing) clearTimeout(existing);
+      const timer = setTimeout(async () => {
+        const payload = new URLSearchParams(new FormData(form));
+        const resp = await fetch(form.action, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'fetch'
+          },
+          body: payload
+        });
+        if (!resp.ok) {
+          showToast('Save failed', 'error');
+        }
+      }, 400);
+      autosaveTimers.set(form, timer);
+    });
+  });
+
+  const toastArea = document.getElementById('adminToastArea');
+  const showToast = (message, kind = 'success') => {
+    if (!toastArea) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${kind} toast-inline`;
+    toast.innerHTML = `<span>${message}</span><button type="button" class="toast-close" aria-label="Close">×</button>`;
+    toastArea.appendChild(toast);
+    toast.querySelector('.toast-close')?.addEventListener('click', () => toast.remove());
+    setTimeout(() => toast.remove(), 4000);
+  };
+
+  // AJAX actions to avoid query params.
+  document.querySelectorAll('.ajax-form').forEach((form) => {
+    if (form.classList.contains('autosave-form')) return;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = new URLSearchParams(new FormData(form));
+      const resp = await fetch(form.action, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Requested-With': 'fetch'
+        },
+        body: payload
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        showToast(data?.message || 'Action failed', 'error');
+        return;
+      }
+      showToast(data?.message || 'Saved', 'success');
+    });
+  });
+
+  // Inline reset password response.
+  document.querySelectorAll('.reset-form').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = new URLSearchParams(new FormData(form));
+      const resp = await fetch(form.action, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Requested-With': 'fetch'
+        },
+        body: payload
+      });
+      if (!resp.ok) {
+        alert('Reset failed');
+        return;
+      }
+      const data = await resp.json();
+      const toast = form.querySelector('.reset-toast');
+      const text = form.querySelector('.reset-text');
+      if (!toast || !text) return;
+      text.textContent = `Temp password: ${data.tempPassword}`;
+      toast.hidden = false;
+      showToast(data?.message || 'Temporary password generated', 'success');
+    });
+  });
+  document.querySelectorAll('.reset-close').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const toast = btn.closest('.reset-toast');
+      if (toast) toast.hidden = true;
+    });
+  });
+</script>

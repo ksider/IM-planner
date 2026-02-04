@@ -8,14 +8,36 @@ export type Experiment = {
   created_at: string;
   notes: string | null;
   machine_id: number | null;
+  owner_user_id: number | null;
+  archived_at: string | null;
   center_points: number;
   max_runs: number;
   replicate_count: number;
   recipe_as_block: number;
 };
 
-export function listExperiments(db: Db): Experiment[] {
-  return db.prepare("SELECT * FROM experiments ORDER BY id DESC").all() as Experiment[];
+export function listExperiments(db: Db, includeArchived = false): Experiment[] {
+  if (includeArchived) {
+    return db.prepare("SELECT * FROM experiments ORDER BY id DESC").all() as Experiment[];
+  }
+  return db
+    .prepare("SELECT * FROM experiments WHERE archived_at IS NULL ORDER BY id DESC")
+    .all() as Experiment[];
+}
+
+export function listExperimentsForOwner(
+  db: Db,
+  ownerUserId: number,
+  includeArchived = false
+): Experiment[] {
+  if (includeArchived) {
+    return db
+      .prepare("SELECT * FROM experiments WHERE owner_user_id = ? ORDER BY id DESC")
+      .all(ownerUserId) as Experiment[];
+  }
+  return db
+    .prepare("SELECT * FROM experiments WHERE owner_user_id = ? AND archived_at IS NULL ORDER BY id DESC")
+    .all(ownerUserId) as Experiment[];
 }
 
 export function getExperiment(db: Db, id: number): Experiment | undefined {
@@ -24,6 +46,16 @@ export function getExperiment(db: Db, id: number): Experiment | undefined {
 
 export function deleteExperiment(db: Db, id: number) {
   db.prepare("DELETE FROM experiments WHERE id = ?").run(id);
+}
+
+export function archiveExperiment(db: Db, id: number) {
+  db.prepare("UPDATE experiments SET archived_at = ? WHERE id = ?").run(new Date().toISOString(), id);
+}
+
+export function restoreExperiment(db: Db, id: number, ownerUserId: number | null) {
+  db.prepare(
+    "UPDATE experiments SET archived_at = NULL, owner_user_id = ? WHERE id = ?"
+  ).run(ownerUserId, id);
 }
 
 export function updateExperiment(
@@ -36,7 +68,7 @@ export function updateExperiment(
   const next = { ...current, ...updates };
   db.prepare(
     `UPDATE experiments
-     SET name = ?, design_type = ?, seed = ?, notes = ?, machine_id = ?, center_points = ?, max_runs = ?, replicate_count = ?, recipe_as_block = ?
+     SET name = ?, design_type = ?, seed = ?, notes = ?, machine_id = ?, owner_user_id = ?, center_points = ?, max_runs = ?, replicate_count = ?, recipe_as_block = ?
      WHERE id = ?`
   ).run(
     next.name,
@@ -44,12 +76,17 @@ export function updateExperiment(
     next.seed,
     next.notes ?? null,
     next.machine_id ?? null,
+    next.owner_user_id ?? null,
     next.center_points ?? 3,
     next.max_runs ?? 200,
     next.replicate_count ?? 1,
     next.recipe_as_block ?? 0,
     id
   );
+}
+
+export function updateExperimentOwner(db: Db, id: number, ownerUserId: number | null) {
+  db.prepare("UPDATE experiments SET owner_user_id = ? WHERE id = ?").run(ownerUserId, id);
 }
 
 export function createExperiment(
@@ -60,8 +97,8 @@ export function createExperiment(
   const result = db
     .prepare(
       `INSERT INTO experiments
-        (name, design_type, seed, created_at, notes, machine_id, center_points, max_runs, replicate_count, recipe_as_block)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (name, design_type, seed, created_at, notes, machine_id, owner_user_id, center_points, max_runs, replicate_count, recipe_as_block)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       data.name,
@@ -70,6 +107,7 @@ export function createExperiment(
       createdAt,
       data.notes ?? null,
       data.machine_id ?? null,
+      data.owner_user_id ?? null,
       data.center_points ?? 3,
       data.max_runs ?? 200,
       data.replicate_count ?? 1,

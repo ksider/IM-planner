@@ -25,6 +25,7 @@ export type ExperimentCreateInput = {
   notes?: string | null;
   recipe_ids?: number[];
   machine_id?: number | null;
+  owner_user_id?: number | null;
 };
 
 type DefaultFactorConfig = {
@@ -76,6 +77,7 @@ export function createExperimentWithDefaults(db: Db, input: ExperimentCreateInpu
     seed: 42,
     notes: input.notes ?? null,
     machine_id: input.machine_id ?? null,
+    owner_user_id: input.owner_user_id ?? null,
     center_points: 3,
     max_runs: 200,
     replicate_count: 1,

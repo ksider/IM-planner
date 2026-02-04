@@ -16,6 +16,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 export function createRecipesRouter(db: Db) {
   const router = express.Router();
 
+  const hasRole = (req: express.Request, roles: string[]) => roles.includes(req.user?.role ?? "");
+
   router.get("/recipes", (_req, res) => {
     const importedCount = _req.query.imported ? Number(_req.query.imported) : null;
     const error = _req.query.error ? String(_req.query.error) : null;
@@ -31,6 +33,9 @@ export function createRecipesRouter(db: Db) {
   });
 
   router.post("/recipes/import", upload.single("matrix"), (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const file = req.file;
     if (!file) {
       return res.redirect("/recipes?error=No%20file%20uploaded.");
@@ -41,6 +46,9 @@ export function createRecipesRouter(db: Db) {
   });
 
   router.post("/recipes/import-text", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const text = typeof req.body.recipe_text === "string" ? req.body.recipe_text : "";
     if (!text.trim()) {
       return res.redirect("/recipes?error=No%20text%20provided.");
@@ -53,6 +61,9 @@ export function createRecipesRouter(db: Db) {
   });
 
   router.post("/recipes/:id/update", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
     const recipeId = Number(req.params.id);
     if (!Number.isFinite(recipeId)) {
       return res.redirect("/recipes?error=Invalid%20recipe%20id.");
@@ -91,6 +102,9 @@ export function createRecipesRouter(db: Db) {
   });
 
   router.post("/recipes/:id/delete", (req, res) => {
+    if (!hasRole(req, ["admin", "manager"])) {
+      return res.status(403).send("Forbidden");
+    }
     const recipeId = Number(req.params.id);
     if (!Number.isFinite(recipeId)) {
       return res.redirect("/recipes?error=Invalid%20recipe%20id.");
@@ -100,6 +114,9 @@ export function createRecipesRouter(db: Db) {
   });
 
   router.post("/recipes/clear", (_req, res) => {
+    if (!hasRole(_req as express.Request, ["admin", "manager"])) {
+      return res.status(403).send("Forbidden");
+    }
     deleteAllRecipes(db);
     res.redirect("/recipes");
   });

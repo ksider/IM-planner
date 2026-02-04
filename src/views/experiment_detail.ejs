@@ -20,9 +20,11 @@
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">Experiment</h2>
-      <button class="icon-button" type="button" id="openMachineEdit" title="Edit machine assignment">
-        <span class="material-symbols-rounded" aria-hidden="true">edit</span>
-      </button>
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+        <button class="icon-button" type="button" id="openMachineEdit" title="Edit machine assignment">
+          <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+        </button>
+      <% } %>
     </div>
     <div class="setup-summary">
       <div>
@@ -74,7 +76,9 @@
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">Detailed Optimization</h2>
-      <button class="pure-button pure-button-secondary" type="button" id="openDoeCreate">AddNew</button>
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+        <button class="pure-button pure-button-secondary" type="button" id="openDoeCreate">AddNew</button>
+      <% } %>
     </div>
     <div class="section-list">
       <% if (!doeStudies || doeStudies.length === 0) { %>
@@ -86,20 +90,22 @@
               <a class="section-title" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=design"><strong><%- formatInline(doe.name) %></strong></a>
               <div class="small-note">Type: <%= doe.design_type %> · Seed: <%= doe.seed %></div>
             </div>
-            <div class="section-actions">
-              <a class="pure-button pure-button-secondary" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=analysis">Analysis</a>
-              <a class="pure-button" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=runs">Runs</a>
-              <form class="icon-action" action="/experiments/<%= experiment.id %>/doe/<%= doe.id %>/clone" method="post">
+          <div class="section-actions">
+            <a class="pure-button pure-button-secondary" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=analysis">Analysis</a>
+            <a class="pure-button" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=runs">Runs</a>
+            <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+              <form class="pure-form icon-action" action="/experiments/<%= experiment.id %>/doe/<%= doe.id %>/clone" method="post">
                 <button class="icon-button" type="submit" title="Clone detailed optimization">
                   <span class="material-symbols-rounded" aria-hidden="true">content_copy</span>
                 </button>
               </form>
-              <form class="icon-action" action="/experiments/<%= experiment.id %>/doe/<%= doe.id %>/delete" method="post" onsubmit="return confirm('Delete this detailed optimization study?');">
+              <form class="pure-form icon-action" action="/experiments/<%= experiment.id %>/doe/<%= doe.id %>/delete" method="post" onsubmit="return confirm('Delete this detailed optimization study?');">
                 <button class="icon-button danger" type="submit" title="Delete detailed optimization">
                   <span class="material-symbols-rounded" aria-hidden="true">delete</span>
                 </button>
               </form>
-            </div>
+            <% } %>
+          </div>
           </div>
         <% }); %>
       <% } %>
@@ -132,32 +138,36 @@
             </div>
             <div class="section-actions">
               <a class="pure-button pure-button-secondary" href="/reports/<%= report.id %>">Open</a>
-              <button
-                class="icon-button"
-                type="button"
-                title="Edit report"
-                data-report-edit
-                data-report-id="<%= report.id %>"
-                data-report-name="<%- formatInline(report.name) %>"
-                data-report-executors="<%- formatInline(report.executors || '') %>"
-                data-report-include="<%- JSON.stringify(includeList) %>"
-                data-report-doe="<%- JSON.stringify(doeList) %>"
-              >
-                <span class="material-symbols-rounded" aria-hidden="true">edit</span>
-              </button>
-              <form class="icon-action" action="/reports/<%= report.id %>/delete" method="post" onsubmit="return confirm('Delete this report?');">
-                <button class="icon-button danger" type="submit" title="Delete report">
-                  <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+              <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+                <button
+                  class="icon-button"
+                  type="button"
+                  title="Edit report"
+                  data-report-edit
+                  data-report-id="<%= report.id %>"
+                  data-report-name="<%- formatInline(report.name) %>"
+                  data-report-executors="<%- formatInline(report.executors || '') %>"
+                  data-report-include="<%- JSON.stringify(includeList) %>"
+                  data-report-doe="<%- JSON.stringify(doeList) %>"
+                >
+                  <span class="material-symbols-rounded" aria-hidden="true">edit</span>
                 </button>
-              </form>
+                <form class="pure-form icon-action" action="/reports/<%= report.id %>/delete" method="post" onsubmit="return confirm('Delete this report?');">
+                  <button class="icon-button danger" type="submit" title="Delete report">
+                    <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                  </button>
+                </form>
+              <% } %>
             </div>
           </div>
         <% }); %>
       <% } %>
     </div>
-    <div class="section-actions" style="margin-top: 0.75rem;">
-      <button class="pure-button pure-button-primary" type="button" id="openReportDialog">Generate Report</button>
-    </div>
+    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+      <div class="section-actions" style="margin-top: 0.75rem;">
+        <button class="pure-button pure-button-primary" type="button" id="openReportDialog">Generate Report</button>
+      </div>
+    <% } %>
   </div>
 </div>
 
@@ -167,7 +177,7 @@
     <button class="pure-button" type="button" data-close>Close</button>
   </div>
   <div class="modal-body">
-    <form class="form-grid" id="reportForm">
+    <form class="pure-form form-grid" id="reportForm">
       <div>
         <label for="reportName">Report name</label>
         <input id="reportName" name="name" type="text" placeholder="Report 1">
@@ -249,14 +259,34 @@
           <label>Description</label>
           <textarea name="notes" rows="4" placeholder="Optional description"><%- formatInline(experiment.notes || '') %></textarea>
         </div>
+        <% if (canManageOwner) { %>
+          <div class="field-span">
+            <label>Owner (admin/manager only)</label>
+            <select name="owner_user_id" form="ownerUpdateForm">
+              <option value="">No owner</option>
+              <% (users || []).forEach((user) => { %>
+                <option value="<%= user.id %>" <%= experiment.owner_user_id === user.id ? 'selected' : '' %>>
+                  <%- formatInline(user.name ? user.name : user.email) %> (<%= user.role ?? 'no-role' %>)
+                </option>
+              <% }); %>
+            </select>
+          </div>
+        <% } %>
       </div>
     </div>
     <div class="modal-footer">
       <button class="pure-button" type="button" data-close>Cancel</button>
+      <% if (canManageOwner) { %>
+        <button class="pure-button" type="submit" form="ownerUpdateForm">Update Owner</button>
+      <% } %>
       <button class="pure-button pure-button-primary" type="submit">Save</button>
     </div>
   </form>
 </dialog>
+
+<% if (canManageOwner) { %>
+  <form id="ownerUpdateForm" class="pure-form" action="/experiments/<%= experiment.id %>/owner" method="post"></form>
+<% } %>
 
 <dialog class="modal-frame" id="doeCreateDialog">
   <div class="modal-header">
