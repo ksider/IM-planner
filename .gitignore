@@ -22,10 +22,12 @@ yarn-error.log*
 *credentials*
 .vscode/
 .idea/
+scripts/
 doe.sqlite
 .DS_Store
 Thumbs.db
 desktop.ini
+*desktop.ini
 .npm
 .pnpm-store
 .yarn
