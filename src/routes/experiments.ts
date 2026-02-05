@@ -18,7 +18,13 @@ import {
 } from "../repos/experiments_repo.js";
 import { ensureExperimentAccess } from "../middleware/experiment_access.js";
 import { getMachine, listMachines } from "../repos/machines_repo.js";
-import { createDoeStudy, deleteDoeStudy, getDoeStudy, listDoeStudies } from "../repos/doe_repo.js";
+import {
+  createDoeStudy,
+  deleteDoeStudy,
+  getDoeStudy,
+  listDoeStudies,
+  updateDoeStudyName
+} from "../repos/doe_repo.js";
 import { listQualSummaries } from "../repos/qual_repo.js";
 import { createReportConfig, listReportConfigs, updateReportConfig, getReportConfig } from "../repos/reports_repo.js";
 import {
@@ -65,8 +71,6 @@ function hasRole(req: express.Request, roles: string[]) {
 export function createExperimentsRouter(db: Db) {
   const router = express.Router();
 
-  router.use("/experiments/:id", ensureExperimentAccess(db));
-
   router.get("/experiments/new", (_req, res) => {
     if (!hasRole(_req, ["admin", "manager", "engineer"])) {
       return res.status(403).send("Forbidden");
@@ -100,6 +104,8 @@ export function createExperimentsRouter(db: Db) {
 
     res.redirect(`/experiments/${experimentId}`);
   });
+
+  router.use("/experiments/:id", ensureExperimentAccess(db));
 
   router.get("/experiments/:id", (req, res) => {
     const experimentId = Number(req.params.id);
@@ -309,6 +315,21 @@ export function createExperimentsRouter(db: Db) {
     }
     deleteDoeStudy(db, doeId);
     res.redirect(`/experiments/${experimentId}`);
+  });
+
+  router.post("/experiments/:id/doe/:doeId/name", (req, res) => {
+    if (!hasRole(req, ["admin", "manager", "engineer"])) {
+      return res.status(403).send("Forbidden");
+    }
+    const experimentId = Number(req.params.id);
+    const doeId = Number(req.params.doeId);
+    const doe = getDoeStudy(db, doeId);
+    if (!doe || doe.experiment_id !== experimentId) {
+      return res.status(404).send("DOE not found");
+    }
+    const name = String(req.body?.name || "").trim();
+    if (name) updateDoeStudyName(db, doeId, name);
+    res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design`);
   });
 
   router.get("/experiments/:id/doe", (req, res) => {

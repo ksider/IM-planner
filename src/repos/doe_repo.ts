@@ -51,3 +51,7 @@ export function createDoeStudy(
 export function deleteDoeStudy(db: Db, doeId: number) {
   db.prepare("DELETE FROM doe_studies WHERE id = ?").run(doeId);
 }
+
+export function updateDoeStudyName(db: Db, doeId: number, name: string) {
+  db.prepare("UPDATE doe_studies SET name = ? WHERE id = ?").run(name, doeId);
+}

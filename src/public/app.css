@@ -319,9 +319,22 @@ sub {
   gap: 0.5rem 1rem;
 }
 
+.task-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  position: relative;
+}
+
+.task-due-icon {
+  font-size: 16px;
+  color: #9a9a96;
+}
+
 .calendar-actions {
   position: relative;
-  margin-top: 0.75rem;
+  margin-top: 0.25rem;
   display: inline-flex;
   gap: 0.5rem;
   align-items: center;
@@ -330,7 +343,7 @@ sub {
 
 .calendar-menu {
   position: absolute;
-  top: calc(100% + 0.5rem);
+  top: calc(100% + 0.35rem);
   left: 0;
   background: #fff;
   border: 1px solid var(--border);
@@ -553,6 +566,7 @@ sub {
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
+  margin-bottom: 0.75rem;
 }
 
 .recipes-actions {
@@ -572,6 +586,7 @@ sub {
   display: grid;
   gap: 0.5rem;
   margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
   max-width: 520px;
 }
 
@@ -598,6 +613,7 @@ sub {
 .recipe-card-grid {
   column-gap: 16px;
   column-count: 2;
+  margin-top: 0.75rem;
 }
 
 @media (min-width: 900px) {
@@ -806,6 +822,18 @@ sub {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  width: 100%;
+}
+
+.card-header .card-title {
+  margin: 0;
+}
+
+
+.card-title + .small-note {
+  display: block;
+  margin-top: 0.35rem;
 }
 
 .card-header.card-header-main {
@@ -844,6 +872,10 @@ sub {
   flex-wrap: wrap;
 }
 
+.section-row > .section-actions {
+  margin-left: auto;
+}
+
 .section-actions {
   display: flex;
   gap: 0.5rem;
@@ -860,6 +892,40 @@ sub {
 
 .section-title:hover {
   color: var(--accent-dark);
+}
+
+.link-muted {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: #6f6b63;
+  font: inherit;
+  cursor: pointer;
+  border-bottom: 1px dotted #b7b1a7;
+}
+
+.link-muted:hover {
+  color: #4f4b45;
+  border-bottom-color: #8f877b;
+}
+
+.collapsible-toggle {
+  display: inline-block;
+  margin-top: 0.75rem;
+}
+
+.task-entity-form .link-muted {
+  display: inline-block;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.task-entity-form .collapsible.is-open {
+  margin-top: 0.5rem;
+}
+
+.attach-entities-btn {
+  margin-top: 0.75rem;
 }
 
 .field-toolbar {
@@ -1113,9 +1179,33 @@ sub {
   gap: 0.75rem;
 }
 
+.setup-summary.setup-summary-two {
+  grid-template-columns: 1.4fr 1fr;
+  align-items: start;
+}
+
+.setup-col {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.setup-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.setup-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .setup-value {
   font-weight: 600;
   color: var(--ink);
+}
+
+.setup-col-desc .setup-value {
+  font-weight: 400;
 }
 
 .setup-field-list {
@@ -1381,6 +1471,17 @@ table.pure-table {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
+}
+
+.field-grid label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.field-grid input,
+.field-grid select,
+.field-grid textarea {
+  width: 100%;
 }
 
 .field-span {

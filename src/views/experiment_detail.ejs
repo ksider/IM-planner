@@ -32,26 +32,28 @@
     <div class="card-header">
       <h2 class="card-title">Experiment</h2>
     </div>
-    <div class="setup-summary">
-      <div>
-        <div class="small-note">Assigned machine</div>
-        <div class="setup-value">
-          <%= selectedMachine ? formatInline(selectedMachine.name) : 'No machine selected' %>
-        </div>
-      </div>
-      <div>
-        <div class="small-note">Recipe</div>
-        <div class="setup-value">
-          <% if (recipeNames && recipeNames.length) { %>
-            <%= recipeNames.map((name) => formatInline(name)).join(', ') %>
-          <% } else { %>
-            -
-          <% } %>
-        </div>
-      </div>
-      <div>
+    <div class="setup-summary setup-summary-two">
+      <div class="setup-col setup-col-desc">
         <div class="small-note">Description</div>
         <div class="setup-value"><%= experiment.notes ? formatInline(experiment.notes) : '-' %></div>
+      </div>
+      <div class="setup-col setup-stack">
+        <div class="setup-row">
+          <div class="small-note">Assigned machine</div>
+          <div class="setup-value">
+            <%= selectedMachine ? formatInline(selectedMachine.name) : 'No machine selected' %>
+          </div>
+        </div>
+        <div class="setup-row">
+          <div class="small-note">Recipe</div>
+          <div class="setup-value">
+            <% if (recipeNames && recipeNames.length) { %>
+              <%= recipeNames.map((name) => formatInline(name)).join(', ') %>
+            <% } else { %>
+              -
+            <% } %>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -83,7 +85,9 @@
     <div class="card-header">
       <h2 class="card-title">Detailed Optimization</h2>
       <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
-        <button class="pure-button pure-button-secondary" type="button" id="openDoeCreate">AddNew</button>
+        <button class="icon-button" type="button" id="openDoeCreate" title="Add DOE">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
       <% } %>
     </div>
     <div class="section-list">
@@ -92,7 +96,7 @@
       <% } else { %>
         <% doeStudies.forEach((doe) => { %>
           <div class="section-row">
-            <div>
+            <div class="section-main">
               <a class="section-title" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=design"><strong><%- formatInline(doe.name) %></strong></a>
               <div class="small-note">Type: <%= doe.design_type %> · Seed: <%= doe.seed %></div>
             </div>
@@ -100,6 +104,16 @@
             <a class="pure-button pure-button-secondary" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=analysis">Analysis</a>
             <a class="pure-button" href="/experiments/<%= experiment.id %>/doe/<%= doe.id %>?tab=runs">Runs</a>
             <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+              <button
+                class="icon-button"
+                type="button"
+                title="Edit DOE name"
+                data-doe-edit
+                data-doe-id="<%= doe.id %>"
+                data-doe-name="<%= doe.name %>"
+              >
+                <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+              </button>
               <form class="pure-form icon-action" action="/experiments/<%= experiment.id %>/doe/<%= doe.id %>/clone" method="post">
                 <button class="icon-button" type="submit" title="Clone detailed optimization">
                   <span class="material-symbols-rounded" aria-hidden="true">content_copy</span>
@@ -121,6 +135,11 @@
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">Reports</h2>
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+        <button class="icon-button" type="button" id="openReportDialog" title="Generate report">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
+      <% } %>
     </div>
     <p class="small-note">Generate report variants for this experiment (qualification/DOE/outputs).</p>
     <div class="section-list">
@@ -169,18 +188,15 @@
         <% }); %>
       <% } %>
     </div>
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
-      <div class="section-actions" style="margin-top: 0.75rem;">
-        <button class="pure-button pure-button-primary" type="button" id="openReportDialog">Generate Report</button>
-      </div>
-    <% } %>
   </div>
 
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">Tasks</h2>
       <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
-        <button class="pure-button pure-button-secondary" type="button" id="openTaskCreate">New Task</button>
+        <button class="icon-button" type="button" id="openTaskCreate" title="New task">
+          <span class="material-symbols-rounded" aria-hidden="true">add</span>
+        </button>
       <% } %>
     </div>
     <div class="kanban-board" data-experiment-id="<%= experiment.id %>">
@@ -404,10 +420,10 @@
           <input type="hidden" name="owner_user_id" value="<%= experiment.owner_user_id ?? '' %>">
         <% } %>
       </div>
-      <button class="pure-button pure-button-secondary" type="button" id="toggleTaskCreateEntities">
+      <button class="link-muted collapsible-toggle" type="button" id="toggleTaskCreateEntities">
         Add entities
       </button>
-      <div class="collapsible" id="taskCreateEntitiesPanel">
+      <div class="collapsible is-open" id="taskCreateEntitiesPanel">
         <div class="task-entity-picker">
           <div class="task-entity-card">
             <div class="task-entity-title">Qualification (6 steps)</div>
@@ -468,24 +484,25 @@
     <p id="taskDescription" class="small-note"></p>
     <div class="task-meta">
       <div><strong>Owner:</strong> <span id="taskOwner">-</span></div>
-      <div><strong>Due:</strong> <span id="taskDue">-</span></div>
+      <div class="task-due">
+        <strong>Due:</strong>
+        <span class="task-due-icon material-symbols-rounded" aria-hidden="true">calendar_today</span>
+        <div class="calendar-menu" id="calendarMenu">
+          <a class="pure-button" id="calendarIcsLink" href="#" download>Download .ics</a>
+          <a class="pure-button" id="calendarGoogleLink" href="#" target="_blank" rel="noopener">Google Calendar</a>
+        </div>
+        <span id="taskDue">-</span>
+      </div>
       <div><strong>Progress:</strong> <span id="taskProgress">0%</span></div>
       <div><strong>Suggested:</strong> <span id="taskSuggested">-</span></div>
     </div>
-    <div class="calendar-actions">
-      <button class="pure-button pure-button-secondary" type="button" id="calendarToggle">Add to calendar</button>
-      <div class="calendar-menu" id="calendarMenu">
-        <a class="pure-button" id="calendarIcsLink" href="#" download>Download .ics</a>
-        <a class="pure-button" id="calendarGoogleLink" href="#" target="_blank" rel="noopener">Google Calendar</a>
-      </div>
-    </div>
+    <div class="calendar-actions"></div>
     <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
       <div class="task-entity-form">
-        <button class="pure-button pure-button-secondary" type="button" id="toggleTaskEntities">
+        <button class="link-muted collapsible-toggle" type="button" id="toggleTaskEntities">
           Attach entities
         </button>
         <div class="collapsible" id="taskEntitiesPanel">
-          <h3 class="card-title" style="margin-top: 1rem;">Attach entity</h3>
           <form class="pure-form" id="taskEntityForm">
             <div class="task-entity-picker">
               <div class="task-entity-card">
@@ -545,7 +562,7 @@
                 </div>
               </div>
             </div>
-            <button class="pure-button pure-button-primary" type="submit">Attach selected</button>
+            <button class="pure-button pure-button-primary attach-entities-btn" type="submit">Attach selected</button>
           </form>
         </div>
       </div>
@@ -553,6 +570,23 @@
     <h3 class="card-title" style="margin-top: 1rem;">Entities</h3>
     <div id="taskEntities"></div>
   </div>
+</dialog>
+
+<dialog class="modal-frame" id="doeEditDialog">
+  <div class="modal-header">
+    <strong>Edit DOE name</strong>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+  <form class="pure-form" id="doeEditForm" method="post">
+    <div class="modal-body">
+      <label for="doeEditName">DOE name</label>
+      <input id="doeEditName" name="name" type="text" required>
+    </div>
+    <div class="modal-footer">
+      <button class="pure-button" type="button" data-close>Cancel</button>
+      <button class="pure-button pure-button-primary" type="submit">Save</button>
+    </div>
+  </form>
 </dialog>
 
 <script>
@@ -563,12 +597,26 @@
   document.getElementById('openMachineEdit')?.addEventListener('click', () => machineEditDialog?.showModal());
   const reportDialog = document.getElementById('reportDialog');
   document.getElementById('openReportDialog')?.addEventListener('click', () => reportDialog?.showModal());
+  const doeEditDialog = document.getElementById('doeEditDialog');
+  const doeEditForm = document.getElementById('doeEditForm');
+  const doeEditName = document.getElementById('doeEditName');
+  document.querySelectorAll('[data-doe-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const doeId = btn.dataset.doeId;
+      const doeName = btn.dataset.doeName || '';
+      if (!doeEditDialog || !doeEditForm || !doeEditName || !doeId) return;
+      doeEditForm.setAttribute('action', `/experiments/<%= experiment.id %>/doe/${doeId}/name`);
+      doeEditName.value = doeName;
+      doeEditDialog.showModal();
+    });
+  });
   const taskDetailDialog = document.getElementById('taskDetailDialog');
   const taskCreateDialog = document.getElementById('taskCreateDialog');
   document.getElementById('openTaskCreate')?.addEventListener('click', () => taskCreateDialog?.showModal());
   document.querySelectorAll('[data-close]').forEach((btn) => {
     btn.addEventListener('click', () => {
       doeCreateDialog?.close();
+      doeEditDialog?.close();
       machineEditDialog?.close();
       reportDialog?.close();
       taskDetailDialog?.close();
@@ -731,10 +779,10 @@
   const taskDescription = document.getElementById('taskDescription');
   const taskOwner = document.getElementById('taskOwner');
   const taskDue = document.getElementById('taskDue');
+  const taskDueWrap = document.querySelector('.task-due');
   const taskProgress = document.getElementById('taskProgress');
   const taskSuggested = document.getElementById('taskSuggested');
   const taskEntities = document.getElementById('taskEntities');
-  const calendarToggle = document.getElementById('calendarToggle');
   const calendarMenu = document.getElementById('calendarMenu');
   const calendarIcsLink = document.getElementById('calendarIcsLink');
   const calendarGoogleLink = document.getElementById('calendarGoogleLink');
@@ -902,8 +950,11 @@
     loadTasks();
   });
 
-  calendarToggle?.addEventListener('click', () => {
-    calendarMenu?.classList.toggle('is-open');
+  taskDueWrap?.addEventListener('click', (event) => {
+    const target = event.target;
+    if (target && target.closest('.task-due-icon')) {
+      calendarMenu?.classList.toggle('is-open');
+    }
   });
 
   toggleTaskEntities?.addEventListener('click', () => {

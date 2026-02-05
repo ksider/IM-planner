@@ -2,14 +2,23 @@
 <%- include('partials/nav') %>
 <div class="container">
   <div class="card">
-    <div class="card-header">
+    <div class="card-header card-header-main">
       <a class="back-link" href="/experiments/<%= experiment.id %>" aria-label="Back to experiment">
         <span class="material-symbols-rounded" aria-hidden="true">arrow_back</span>
       </a>
       <div>
-        <h1 class="card-title"><%- formatInline(experiment.name) %></h1>
-        <p class="small-note"><strong><%- formatInline(doe.name) %></strong> · <%= doe.design_type %> · Seed <%= doe.seed %></p>
+        <h1 class="card-title"><%- formatInline(doe.name) %></h1>
+        <p class="small-note">
+          <strong><%- formatInline(experiment.name) %></strong> · <%= doe.design_type %> · Seed <%= doe.seed %>
+        </p>
       </div>
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+        <div class="section-actions">
+          <button class="icon-button" type="button" id="openDoeNameDialog" title="Edit DOE name">
+            <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+          </button>
+        </div>
+      <% } %>
     </div>
     <div class="tabs">
       <a class="<%= tab === 'design' ? 'active' : '' %>" href="/experiments/<%= experiment.id %>/doe/<%= doeId %>?tab=design">Design</a>
@@ -1482,3 +1491,28 @@
   }
 </script>
 <%- include('partials/foot') %>
+
+<dialog class="modal-frame" id="doeNameDialog">
+  <div class="modal-header">
+    <strong>Edit DOE name</strong>
+    <button class="pure-button" type="button" data-close>Close</button>
+  </div>
+  <form class="pure-form" action="/experiments/<%= experiment.id %>/doe/<%= doeId %>/name" method="post">
+    <div class="modal-body">
+      <label for="doeNameInput">DOE name</label>
+      <input id="doeNameInput" name="name" type="text" value="<%- formatInline(doe.name) %>" required>
+    </div>
+    <div class="modal-footer">
+      <button class="pure-button" type="button" data-close>Cancel</button>
+      <button class="pure-button pure-button-primary" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  const doeNameDialog = document.getElementById('doeNameDialog');
+  document.getElementById('openDoeNameDialog')?.addEventListener('click', () => doeNameDialog?.showModal());
+  doeNameDialog?.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => doeNameDialog.close());
+  });
+</script>
