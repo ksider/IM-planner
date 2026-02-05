@@ -348,6 +348,15 @@ sub {
   display: flex;
 }
 
+.collapsible {
+  display: none;
+  margin-top: 0.75rem;
+}
+
+.collapsible.is-open {
+  display: block;
+}
+
 .task-entity-form {
   margin-top: 0.5rem;
   padding: 0.75rem;
