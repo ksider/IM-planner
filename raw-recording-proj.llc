@@ -1,0 +1,84 @@
+{
+  version: 2,
+  mediaFileName: 'raw-recording.webm',
+  cutSegments: [
+    {
+      start: 0,
+      end: 9.493890298507463,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 9.493890298507463,
+      end: 11.403903731343284,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 11.403903731343284,
+      end: 15.785699253731343,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 15.785699253731343,
+      end: 18.42601194029851,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 18.42601194029851,
+      end: 31.00962985074627,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 31.00962985074627,
+      end: 33.25670447761194,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 33.25670447761194,
+      end: 45.50326119402985,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 45.50326119402985,
+      end: 49.09858059701493,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 49.09858059701493,
+      end: 59.09806268656717,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 59.09806268656717,
+      end: 61.23278358208955,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 61.23278358208955,
+      end: 71.00755820895522,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 71.00755820895522,
+      end: 73.31080970149253,
+      name: '',
+      selected: true,
+    },
+    {
+      start: 73.31080970149253,
+      end: 75.277,
+      name: '',
+      selected: true,
+    },
+  ],
+}

@@ -32,3 +32,4 @@ desktop.ini
 .pnpm-store
 .yarn
 im_doe.sqlite
+/vid*

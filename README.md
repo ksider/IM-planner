@@ -24,7 +24,7 @@
 </table>
 
 <p>
-  <img src="screenshot.jpg" alt="IM Planner screenshot" />
+  <img src="visual/im-experiment.gif" alt="IM Planner screenshot" />
 </p>
 
 ## Install + Run
