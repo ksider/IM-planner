@@ -478,7 +478,16 @@
 <dialog class="modal-frame" id="taskDetailDialog">
   <div class="modal-header">
     <strong id="taskTitle">Task</strong>
-    <button class="pure-button" type="button" data-close>Close</button>
+    <div class="modal-actions">
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+        <button class="icon-btn icon-only" type="button" id="openTaskEdit" title="Edit task">
+          <span class="material-symbols-rounded" aria-hidden="true">edit</span>
+        </button>
+      <% } %>
+      <button class="icon-btn icon-only" type="button" data-close title="Close">
+        <span class="material-symbols-rounded" aria-hidden="true">close</span>
+      </button>
+    </div>
   </div>
   <div class="modal-body">
     <p id="taskDescription" class="small-note"></p>
@@ -497,13 +506,38 @@
       <div><strong>Suggested:</strong> <span id="taskSuggested">-</span></div>
     </div>
     <div class="calendar-actions"></div>
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+    <h3 class="card-title" style="margin-top: 1rem;">Entities</h3>
+    <div id="taskEntities"></div>
+  </div>
+</dialog>
+
+<% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'engineer')) { %>
+  <dialog class="modal-frame" id="taskEditDialog">
+    <div class="modal-header">
+      <strong>Edit Task</strong>
+      <button class="pure-button" type="button" data-close>Close</button>
+    </div>
+    <div class="modal-body">
+      <form class="pure-form form-grid" id="taskEditForm">
+        <div>
+          <label for="taskEditTitle">Title</label>
+          <input id="taskEditTitle" name="title" type="text" required>
+        </div>
+        <div>
+          <label for="taskEditDue">Due date</label>
+          <input id="taskEditDue" name="due_at" type="date">
+        </div>
+        <div class="field-span">
+          <label for="taskEditDesc">Description</label>
+          <textarea id="taskEditDesc" name="description" rows="3"></textarea>
+        </div>
+      </form>
       <div class="task-entity-form">
-        <button class="link-muted collapsible-toggle" type="button" id="toggleTaskEntities">
+        <button class="link-muted collapsible-toggle" type="button" id="toggleTaskEditEntities">
           Attach entities
         </button>
-        <div class="collapsible" id="taskEntitiesPanel">
-          <form class="pure-form" id="taskEntityForm">
+        <div class="collapsible" id="taskEditEntitiesPanel">
+          <form class="pure-form" id="taskEditEntityForm">
             <div class="task-entity-picker">
               <div class="task-entity-card">
                 <div class="task-entity-title">Qualification (6 steps)</div>
@@ -566,11 +600,15 @@
           </form>
         </div>
       </div>
-    <% } %>
-    <h3 class="card-title" style="margin-top: 1rem;">Entities</h3>
-    <div id="taskEntities"></div>
-  </div>
-</dialog>
+      <h3 class="card-title" style="margin-top: 1rem;">Entities</h3>
+      <div id="taskEditEntities"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="pure-button" type="button" data-close>Cancel</button>
+      <button class="pure-button pure-button-primary" type="button" id="taskEditSave">Save changes</button>
+    </div>
+  </dialog>
+<% } %>
 
 <dialog class="modal-frame" id="doeEditDialog">
   <div class="modal-header">
@@ -611,6 +649,8 @@
     });
   });
   const taskDetailDialog = document.getElementById('taskDetailDialog');
+  const taskEditDialog = document.getElementById('taskEditDialog');
+  const openTaskEdit = document.getElementById('openTaskEdit');
   const taskCreateDialog = document.getElementById('taskCreateDialog');
   document.getElementById('openTaskCreate')?.addEventListener('click', () => taskCreateDialog?.showModal());
   document.querySelectorAll('[data-close]').forEach((btn) => {
@@ -620,6 +660,7 @@
       machineEditDialog?.close();
       reportDialog?.close();
       taskDetailDialog?.close();
+      taskEditDialog?.close();
       taskCreateDialog?.close();
     });
   });
@@ -783,14 +824,20 @@
   const taskProgress = document.getElementById('taskProgress');
   const taskSuggested = document.getElementById('taskSuggested');
   const taskEntities = document.getElementById('taskEntities');
+  const taskEditForm = document.getElementById('taskEditForm');
+  const taskEditTitle = document.getElementById('taskEditTitle');
+  const taskEditDue = document.getElementById('taskEditDue');
+  const taskEditDesc = document.getElementById('taskEditDesc');
+  const taskEditEntities = document.getElementById('taskEditEntities');
+  const taskEditSave = document.getElementById('taskEditSave');
+  const taskEditEntityForm = document.getElementById('taskEditEntityForm');
   const calendarMenu = document.getElementById('calendarMenu');
   const calendarIcsLink = document.getElementById('calendarIcsLink');
   const calendarGoogleLink = document.getElementById('calendarGoogleLink');
-  const toggleTaskEntities = document.getElementById('toggleTaskEntities');
-  const taskEntitiesPanel = document.getElementById('taskEntitiesPanel');
+  const toggleTaskEditEntities = document.getElementById('toggleTaskEditEntities');
+  const taskEditEntitiesPanel = document.getElementById('taskEditEntitiesPanel');
   const toggleTaskCreateEntities = document.getElementById('toggleTaskCreateEntities');
   const taskCreateEntitiesPanel = document.getElementById('taskCreateEntitiesPanel');
-  const taskEntityForm = document.getElementById('taskEntityForm');
   let currentTaskId = null;
 
   const setCheckboxState = (selector, existingMap, type) => {
@@ -869,60 +916,139 @@
     taskProgress.textContent = `${Math.round((data.progress?.percent || 0) * 100)}%`;
     taskSuggested.textContent = data.suggestedStatus || '-';
     taskEntities.innerHTML = '';
+    (data.entities || []).forEach((entity) => {
+      const row = document.createElement('div');
+      row.className = 'task-entity-row';
+      const signed = entity.signature_at ? 'signed' : (entity.signature_required ? 'required' : 'no');
+      row.innerHTML = `
+        <div>
+          <strong>${entity.display_label || `#${entity.entity_id}`}</strong>
+          <span class="entity-type">${entity.entity_type}</span>
+        </div>
+        <div>weight: ${entity.weight}</div>
+        <div>status: ${entity.status}</div>
+        <div>signature: ${signed}</div>
+      `;
+      taskEntities.appendChild(row);
+    });
+    taskDetailDialog.showModal();
+  }
+
+  function fillEditDialog(data) {
+    if (!taskEditTitle || !taskEditDue || !taskEditDesc) return;
+    taskEditTitle.value = data.task?.title || '';
+    taskEditDesc.value = data.task?.description || '';
+    if (data.task?.due_at) {
+      const date = new Date(data.task.due_at);
+      taskEditDue.value = Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+    } else {
+      taskEditDue.value = '';
+    }
     const attached = new Set(
       (data.entities || []).map((entity) => `${entity.entity_type}:${entity.entity_id}`)
     );
     setCheckboxState('input[name="qual_steps_edit"]', attached, 'qualification_step');
     setCheckboxState('input[name="doe_ids_edit"]', attached, 'doe');
     setCheckboxState('input[name="report_ids_edit"]', attached, 'report');
-    (data.entities || []).forEach((entity) => {
-      const row = document.createElement('div');
-      row.className = 'task-entity-row';
-      const signed = entity.signature_at ? 'signed' : (entity.signature_required ? 'required' : 'no');
-      const signButton = canSignReports && entity.entity_type === 'report' && entity.signature_required && !entity.signature_at
-        ? `<button class="pure-button pure-button-secondary" type="button" data-entity-sign="${entity.id}">Sign report</button>`
-        : '';
-      row.innerHTML = `
-        <div><strong>${entity.entity_type}</strong> #${entity.entity_id}</div>
-        <div>weight: ${entity.weight}</div>
-        <div>status: ${entity.status}</div>
-        <div>signature: ${signed}</div>
-        ${signButton}
-        <button class="pure-button pure-button-secondary" type="button" data-entity-delete="${entity.id}">Remove</button>
-      `;
-      taskEntities.appendChild(row);
-    });
-    taskEntities.querySelectorAll('[data-entity-sign]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const entityId = btn.getAttribute('data-entity-sign');
-        if (!entityId) return;
-        const payload = new URLSearchParams();
-        payload.set('entity_id', entityId);
-        await fetch(`/tasks/${taskId}/sign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: payload
+    if (taskEditEntities) {
+      taskEditEntities.innerHTML = '';
+      (data.entities || []).forEach((entity) => {
+        const row = document.createElement('div');
+        row.className = 'task-entity-row';
+        const signed = entity.signature_at ? 'signed' : (entity.signature_required ? 'required' : 'no');
+        const signButton = canSignReports && entity.entity_type === 'report' && entity.signature_required && !entity.signature_at
+          ? `<button class="pure-button pure-button-secondary" type="button" data-entity-sign="${entity.id}">Sign report</button>`
+          : '';
+        row.innerHTML = `
+          <div>
+            <strong>${entity.display_label || `#${entity.entity_id}`}</strong>
+            <span class="entity-type">${entity.entity_type}</span>
+          </div>
+          <div>
+            <label>weight</label>
+            <input type="number" min="0" step="1" value="${entity.weight}" data-entity-weight="${entity.id}">
+          </div>
+          <div>status: ${entity.status}</div>
+          <div>signature: ${signed}</div>
+          ${signButton}
+          <button class="pure-button pure-button-secondary" type="button" data-entity-delete="${entity.id}">Remove</button>
+        `;
+        taskEditEntities.appendChild(row);
+      });
+      taskEditEntities.querySelectorAll('[data-entity-sign]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const entityId = btn.getAttribute('data-entity-sign');
+          if (!entityId || !currentTaskId) return;
+          const payload = new URLSearchParams();
+          payload.set('entity_id', entityId);
+          await fetch(`/tasks/${currentTaskId}/sign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: payload
+          });
+          openTask(currentTaskId);
         });
-        openTask(taskId);
-        loadTasks();
       });
-    });
-    taskEntities.querySelectorAll('[data-entity-delete]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const entityId = btn.getAttribute('data-entity-delete');
-        if (!entityId) return;
-        await fetch(`/tasks/${taskId}/entities/${entityId}/delete`, { method: 'POST' });
-        openTask(taskId);
-        loadTasks();
+      taskEditEntities.querySelectorAll('[data-entity-delete]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const entityId = btn.getAttribute('data-entity-delete');
+          if (!entityId || !currentTaskId) return;
+          await fetch(`/tasks/${currentTaskId}/entities/${entityId}/delete`, { method: 'POST' });
+          const refreshed = await fetch(`/tasks/${currentTaskId}`);
+          if (refreshed.ok) {
+            const data = await refreshed.json();
+            fillEditDialog(data);
+          }
+          loadTasks();
+        });
       });
-    });
-    taskDetailDialog.showModal();
+    }
   }
 
-  taskEntityForm?.addEventListener('submit', async (event) => {
+  openTaskEdit?.addEventListener('click', async () => {
+    if (!currentTaskId || !taskEditDialog) return;
+    const resp = await fetch(`/tasks/${currentTaskId}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    fillEditDialog(data);
+    taskEditDialog.showModal();
+  });
+
+  taskEditSave?.addEventListener('click', async () => {
+    if (!currentTaskId || !taskEditTitle || !taskEditDesc || !taskEditDue) return;
+    const payload = new URLSearchParams();
+    payload.set('title', taskEditTitle.value.trim());
+    payload.set('description', taskEditDesc.value.trim());
+    payload.set('due_at', taskEditDue.value || '');
+    const resp = await fetch(`/tasks/${currentTaskId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: payload
+    });
+    if (!resp.ok) return;
+    const weightInputs = taskEditEntities?.querySelectorAll('[data-entity-weight]') || [];
+    const updates = Array.from(weightInputs).map((input) => {
+      const id = input.getAttribute('data-entity-weight');
+      const weight = input.value;
+      if (!id) return null;
+      const body = new URLSearchParams();
+      body.set('weight', weight);
+      return fetch(`/tasks/${currentTaskId}/entities/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      });
+    }).filter(Boolean);
+    if (updates.length) await Promise.allSettled(updates);
+    taskEditDialog?.close();
+    openTask(currentTaskId);
+    loadTasks();
+  });
+
+  taskEditEntityForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!currentTaskId) return;
-    const formData = new FormData(taskEntityForm);
+    const formData = new FormData(taskEditEntityForm);
     const toAttach = [];
     formData.getAll('qual_steps_edit').forEach((val) => {
       toAttach.push({ type: 'qualification_step', id: String(val) });
@@ -946,7 +1072,11 @@
       });
     });
     await Promise.allSettled(requests);
-    openTask(currentTaskId);
+    const refreshed = await fetch(`/tasks/${currentTaskId}`);
+    if (refreshed.ok) {
+      const data = await refreshed.json();
+      fillEditDialog(data);
+    }
     loadTasks();
   });
 
@@ -957,8 +1087,8 @@
     }
   });
 
-  toggleTaskEntities?.addEventListener('click', () => {
-    taskEntitiesPanel?.classList.toggle('is-open');
+  toggleTaskEditEntities?.addEventListener('click', () => {
+    taskEditEntitiesPanel?.classList.toggle('is-open');
   });
 
   toggleTaskCreateEntities?.addEventListener('click', () => {
@@ -967,7 +1097,9 @@
 
   taskDetailDialog?.addEventListener('close', () => {
     calendarMenu?.classList.remove('is-open');
-    taskEntitiesPanel?.classList.remove('is-open');
+  });
+  taskEditDialog?.addEventListener('close', () => {
+    taskEditEntitiesPanel?.classList.remove('is-open');
   });
 
   board?.querySelectorAll('.kanban-column').forEach((column) => {

@@ -19,6 +19,8 @@ body {
   color: var(--ink);
   background: radial-gradient(circle at 20% 10%, #f8efe3, #f5f1ea 50%, #f1ece4 100%);
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 sup,
@@ -266,6 +268,29 @@ sub {
   gap: 0.5rem;
 }
 
+.tab-row {
+  display: inline-flex;
+  gap: 0.5rem;
+  margin: 0.5rem 0 1rem;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--slate);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tab-btn.is-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+}
+
 .kanban-board {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -455,10 +480,19 @@ sub {
   border-bottom: 1px dashed var(--border);
 }
 
+.entity-type {
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--slate);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 1.5rem;
+  width: 100%;
 }
 
 .container.wide {
@@ -1452,6 +1486,12 @@ table.pure-table {
   background: linear-gradient(90deg, #f7e9dc, #f6f2ec);
 }
 
+.modal-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .modal-footer {
   padding: 1rem 1.25rem;
   border-top: 1px solid var(--border);
@@ -2188,4 +2228,43 @@ tr[data-mode="list"] .settings-range {
     margin-left: 0;
     margin-right: 0.8rem;
   }
+}
+
+.site-footer {
+  margin-top: auto;
+  padding: 1.5rem 1.5rem 2rem;
+  background: linear-gradient(90deg, #f8ede0, #f4efe9);
+  border-top: 1px solid var(--border);
+}
+
+.site-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.footer-brand {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.footer-links {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.footer-links a {
+  color: var(--slate);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.footer-links a:hover {
+  text-decoration: underline;
 }

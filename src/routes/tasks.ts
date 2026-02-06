@@ -20,7 +20,10 @@ import { computeTaskProgress, suggestTaskStatusWithRules, getDefaultEntityWeight
 import { listTasksForUser } from "../repos/tasks_read_repo.js";
 import { findUserById } from "../repos/users_repo.js";
 import { listQualSummarySteps } from "../repos/qual_repo.js";
+import { getQualificationSteps } from "../services/qualification_service.js";
 import { getExperiment } from "../repos/experiments_repo.js";
+import { getDoeStudy } from "../repos/doe_repo.js";
+import { getReportConfig } from "../repos/reports_repo.js";
 
 export function createTasksRouter(db: Db) {
   const router = express.Router();
@@ -57,7 +60,10 @@ export function createTasksRouter(db: Db) {
     if (!Number.isFinite(taskId)) return res.status(400).json({ error: "Invalid task" });
     const task = getTask(db, taskId);
     if (!task) return res.status(404).json({ error: "Task not found" });
-    const entities = listTaskEntities(db, taskId);
+    const entities = listTaskEntities(db, taskId).map((entity) => ({
+      ...entity,
+      display_label: getEntityLabel(db, entity.entity_type, entity.entity_id)
+    }));
     const summarySteps = new Set(listQualSummarySteps(db, task.experiment_id));
     const hydrated = entities.map((entity) => {
       if (entity.entity_type === "qualification_step") {
@@ -109,13 +115,27 @@ export function createTasksRouter(db: Db) {
   router.post("/tasks/:id", requireTaskManager, (req, res) => {
     const taskId = Number(req.params.id);
     if (!Number.isFinite(taskId)) return res.status(400).json({ error: "Invalid task" });
-    updateTask(db, taskId, {
-      title: req.body?.title ? String(req.body.title) : undefined,
-      description: req.body?.description ? String(req.body.description) : undefined,
-      status: req.body?.status,
-      owner_user_id: req.body?.owner_user_id ? Number(req.body.owner_user_id) : undefined,
-      due_at: req.body?.due_at ? String(req.body.due_at) : undefined
-    });
+    const updates: Record<string, unknown> = {};
+    if (req.body?.title !== undefined) {
+      updates.title = String(req.body.title);
+    }
+    if (req.body?.description !== undefined) {
+      const rawDesc = String(req.body.description);
+      updates.description = rawDesc.trim() ? rawDesc : null;
+    }
+    if (req.body?.status !== undefined) {
+      updates.status = String(req.body.status);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "owner_user_id")) {
+      const rawOwner = req.body?.owner_user_id;
+      const ownerUserId = rawOwner === "" || rawOwner == null ? null : Number(rawOwner);
+      updates.owner_user_id = Number.isFinite(ownerUserId) ? ownerUserId : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "due_at")) {
+      const rawDue = String(req.body?.due_at ?? "");
+      updates.due_at = rawDue.trim() ? rawDue : null;
+    }
+    updateTask(db, taskId, updates);
     res.json({ ok: true });
   });
 
@@ -156,11 +176,27 @@ export function createTasksRouter(db: Db) {
   router.post("/tasks/:id/entities/:entityId", requireTaskOperator, (req, res) => {
     const entityId = Number(req.params.entityId);
     if (!Number.isFinite(entityId)) return res.status(400).json({ error: "Invalid entity" });
-    updateTaskEntity(db, entityId, {
-      status: req.body?.status,
-      weight: req.body?.weight ? Number(req.body.weight) : undefined,
-      progress_mode: req.body?.progress_mode
-    });
+    const updates: Record<string, unknown> = {};
+    if (req.body?.status !== undefined) {
+      updates.status = String(req.body.status);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body, "weight")) {
+      const rawWeight = String(req.body?.weight ?? "").trim();
+      if (rawWeight) {
+        const weight = Number(rawWeight);
+        if (!Number.isFinite(weight)) {
+          return res.status(400).json({ error: "Invalid weight" });
+        }
+        updates.weight = weight;
+      }
+    }
+    if (req.body?.progress_mode !== undefined) {
+      updates.progress_mode = String(req.body.progress_mode);
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.json({ ok: true });
+    }
+    updateTaskEntity(db, entityId, updates);
     res.json({ ok: true });
   });
 
@@ -282,6 +318,26 @@ export function createTasksRouter(db: Db) {
   });
 
   return router;
+}
+
+const qualificationStepLabels = new Map(
+  getQualificationSteps().map((step) => [step.step_number, step.name])
+);
+
+function getEntityLabel(db: Db, type: string, id: number): string {
+  if (type === "qualification_step") {
+    const name = qualificationStepLabels.get(id);
+    return name ? `Step ${id}: ${name}` : `Step ${id}`;
+  }
+  if (type === "doe") {
+    const doe = getDoeStudy(db, id);
+    return doe?.name ?? `DOE #${id}`;
+  }
+  if (type === "report") {
+    const report = getReportConfig(db, id);
+    return report?.name ?? `Report #${id}`;
+  }
+  return `${type} #${id}`;
 }
 
 function parseDate(raw: string): { year: number; month: number; day: number } | null {

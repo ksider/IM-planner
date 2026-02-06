@@ -570,12 +570,21 @@ export function createExperimentsRouter(db: Db) {
     res.redirect(`/experiments/${experimentId}/doe/${doeId}?tab=design`);
   });
 
-  router.post("/experiments/:id/delete", (req, res) => {
+  router.post("/experiments/:id/archive", (req, res) => {
     if (!hasRole(req, ["admin", "manager"])) {
       return res.status(403).send("Forbidden");
     }
     const experimentId = Number(req.params.id);
+    if (!Number.isFinite(experimentId)) {
+      if (req.get("X-Requested-With") === "fetch") {
+        return res.status(400).json({ ok: false, message: "Invalid experiment" });
+      }
+      return res.redirect("/");
+    }
     archiveExperiment(db, experimentId);
+    if (req.get("X-Requested-With") === "fetch") {
+      return res.json({ ok: true, message: "Experiment archived" });
+    }
     res.redirect("/");
   });
 

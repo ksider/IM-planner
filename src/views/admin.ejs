@@ -110,6 +110,11 @@
 
   <div class="card">
     <h2 class="card-title">Experiments</h2>
+    <div class="tab-row">
+      <button class="tab-btn is-active" type="button" data-exp-tab="active">Active</button>
+      <button class="tab-btn" type="button" data-exp-tab="archived">Archived</button>
+    </div>
+    <div id="adminExperimentToastArea"></div>
     <div class="table-wrap">
       <table class="pure-table pure-table-striped">
         <thead>
@@ -118,15 +123,29 @@
             <th>Name</th>
             <th>Owner</th>
             <th>Status</th>
+            <th>Progress</th>
           </tr>
         </thead>
         <tbody>
           <% experiments.forEach(function(exp) { %>
-            <tr>
+            <tr data-exp-id="<%= exp.id %>" data-exp-status="<%= exp.archived_at ? 'archived' : 'active' %>">
               <td><%= exp.id %></td>
-              <td><%= exp.name %></td>
+              <td><a href="/experiments/<%= exp.id %>"><%= exp.name %></a></td>
               <td>
-                <form method="post" action="/admin/experiments/<%= exp.id %>/owner" class="pure-form inline-form autosave-form ajax-form">
+                <% if (exp.archived_at) { %>
+                  <form method="post" action="/admin/experiments/<%= exp.id %>/restore" class="pure-form inline-form ajax-form" data-exp-action="restore">
+                    <select name="owner_user_id">
+                      <option value="">No owner</option>
+                      <% users.forEach(function(user) { %>
+                        <option value="<%= user.id %>" <%= exp.owner_user_id === user.id ? 'selected' : '' %>>
+                          <%= user.name ? user.name : user.email %>
+                        </option>
+                      <% }); %>
+                    </select>
+                    <button type="submit" class="pure-button">Restore</button>
+                  </form>
+                <% } else { %>
+                <form method="post" action="/admin/experiments/<%= exp.id %>/owner" class="pure-form inline-form ajax-form autosave-form" data-exp-action="owner-update">
                   <select name="owner_user_id">
                     <option value="">No owner</option>
                     <% users.forEach(function(user) { %>
@@ -135,25 +154,25 @@
                       </option>
                     <% }); %>
                   </select>
-                  <button type="submit" class="pure-button">Update</button>
                 </form>
-              </td>
-              <td>
-                <% if (exp.archived_at) { %>
-                  <span class="badge">archived</span>
-                  <form method="post" action="/admin/experiments/<%= exp.id %>/restore" class="pure-form inline-form autosave-form ajax-form">
-                    <select name="owner_user_id">
-                      <option value="">No owner</option>
-                      <% users.forEach(function(user) { %>
-                        <option value="<%= user.id %>"><%= user.name ? user.name : user.email %></option>
-                      <% }); %>
-                    </select>
-                    <button type="submit" class="pure-button">Restore</button>
-                  </form>
-                <% } else { %>
-                  active
                 <% } %>
               </td>
+              <td data-exp-status-cell>
+                <% if (exp.archived_at) { %>
+                  <form method="post" action="/admin/experiments/<%= exp.id %>/delete" class="pure-form inline-form ajax-form" data-exp-action="delete" onsubmit="return confirm('Delete this archived experiment? This cannot be undone.');">
+                    <button type="submit" class="icon-btn icon-only danger" title="Delete permanently">
+                      <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                    </button>
+                  </form>
+                <% } else { %>
+                  <form method="post" action="/experiments/<%= exp.id %>/archive" class="pure-form inline-form ajax-form" data-exp-action="archive" onsubmit="return confirm('Archive this experiment?');">
+                    <button type="submit" class="icon-btn icon-only warn" title="Archive">
+                      <span class="material-symbols-rounded" aria-hidden="true">archive</span>
+                    </button>
+                  </form>
+                <% } %>
+              </td>
+              <td><span class="status-pill status-<%= exp.status %>"><%= exp.statusLabel %></span></td>
             </tr>
           <% }); %>
         </tbody>
@@ -245,7 +264,8 @@
         body: payload
       });
       if (!resp.ok) {
-        showToast('Save failed', 'error');
+        const target = form?.getAttribute('data-exp-action') ? 'experiments' : 'users';
+        showToast('Save failed', 'error', target);
       }
     }, 400);
     autosaveTimers.set(form, timer);
@@ -257,23 +277,39 @@
       scheduleAutosave(form);
     });
   });
+  const bindAutosaveSelects = (root = document) => {
+    root.querySelectorAll('form.autosave-form select').forEach((select) => {
+      if (select.dataset.autosaveBound === '1') return;
+      select.dataset.autosaveBound = '1';
+      select.addEventListener('change', () => {
+        const form = select.closest('form');
+        scheduleAutosave(form);
+      });
+    });
+  };
+  bindAutosaveSelects();
 
   const toastArea = document.getElementById('adminToastArea');
-  const showToast = (message, kind = 'success') => {
-    if (!toastArea) return;
+  const expToastArea = document.getElementById('adminExperimentToastArea');
+  const showToast = (message, kind = 'success', target = 'users') => {
+    const area = target === 'experiments' ? expToastArea : toastArea;
+    if (!area) return;
     const toast = document.createElement('div');
     toast.className = `toast toast-${kind} toast-inline`;
     toast.innerHTML = `<span>${message}</span><button type="button" class="toast-close" aria-label="Close">×</button>`;
-    toastArea.appendChild(toast);
+    area.appendChild(toast);
     toast.querySelector('.toast-close')?.addEventListener('click', () => toast.remove());
     setTimeout(() => toast.remove(), 4000);
   };
 
-  // AJAX actions to avoid query params.
-  document.querySelectorAll('.ajax-form').forEach((form) => {
-    if (form.classList.contains('autosave-form')) return;
-    form.addEventListener('submit', async (event) => {
+  const bindAjaxForms = (root = document) => {
+    root.querySelectorAll('.ajax-form').forEach((form) => {
+      if (form.dataset.ajaxBound === '1') return;
+      form.dataset.ajaxBound = '1';
+      form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      const expAction = form.getAttribute('data-exp-action');
+      const isExperiment = Boolean(expAction);
       const banToggle = form.querySelector('[data-ban-toggle]');
       const payload = new URLSearchParams(new FormData(form));
       const resp = await fetch(form.action, {
@@ -286,10 +322,27 @@
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        showToast(data?.message || 'Action failed', 'error');
+        showToast(data?.message || 'Action failed', 'error', isExperiment ? 'experiments' : 'users');
         return;
       }
-      showToast(data?.message || 'Saved', 'success');
+      showToast(data?.message || 'Saved', 'success', isExperiment ? 'experiments' : 'users');
+      if (isExperiment) {
+        const row = form.closest('tr[data-exp-status]');
+        if (expAction === 'delete' && row) {
+          row.remove();
+          return;
+        }
+        if (expAction === 'restore' && row) {
+          row.dataset.expStatus = 'active';
+          switchRowToActive(row);
+          setExpTab('active');
+        }
+        if (expAction === 'archive' && row) {
+          row.dataset.expStatus = 'archived';
+          switchRowToArchived(row);
+          setExpTab('archived');
+        }
+      }
       if (banToggle) {
         const isBan = banToggle.dataset.banToggle === 'ban';
         const nextIsBan = !isBan;
@@ -309,7 +362,10 @@
         }
       }
     });
-  });
+    });
+  };
+  // AJAX actions to avoid query params.
+  bindAjaxForms();
 
   // Inline reset password response.
   document.querySelectorAll('.reset-form').forEach((form) => {
@@ -343,4 +399,89 @@
       if (toast) toast.hidden = true;
     });
   });
+
+  // Experiments tabs (active/archived).
+  const expTabButtons = document.querySelectorAll('[data-exp-tab]');
+  const buildArchiveForm = (experimentId) => {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = `/experiments/${experimentId}/archive`;
+    form.className = 'pure-form inline-form ajax-form';
+    form.setAttribute('data-exp-action', 'archive');
+    form.onsubmit = () => confirm('Archive this experiment?');
+    form.innerHTML = `
+      <button type="submit" class="icon-btn icon-only warn" title="Archive">
+        <span class="material-symbols-rounded" aria-hidden="true">archive</span>
+      </button>
+    `;
+    return form;
+  };
+  const buildDeleteForm = (experimentId) => {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = `/admin/experiments/${experimentId}/delete`;
+    form.className = 'pure-form inline-form ajax-form';
+    form.setAttribute('data-exp-action', 'delete');
+    form.onsubmit = () => confirm('Delete this archived experiment? This cannot be undone.');
+    form.innerHTML = `
+      <button type="submit" class="icon-btn icon-only danger" title="Delete permanently">
+        <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+      </button>
+    `;
+    return form;
+  };
+  const switchRowToArchived = (row) => {
+    const experimentId = row.dataset.expId;
+    const ownerForm = row.querySelector('form[data-exp-action="owner-update"]');
+    if (ownerForm && experimentId) {
+      ownerForm.classList.remove('autosave-form');
+      ownerForm.setAttribute('data-exp-action', 'restore');
+      ownerForm.action = `/admin/experiments/${experimentId}/restore`;
+      let button = ownerForm.querySelector('button[type="submit"]');
+      if (!button) {
+        button = document.createElement('button');
+        button.type = 'submit';
+        button.className = 'pure-button';
+        ownerForm.appendChild(button);
+      }
+      button.textContent = 'Restore';
+    }
+    const statusCell = row.querySelector('[data-exp-status-cell]');
+    if (statusCell && experimentId) {
+      statusCell.innerHTML = '';
+      statusCell.appendChild(buildDeleteForm(experimentId));
+      bindAjaxForms(statusCell);
+    }
+  };
+  const switchRowToActive = (row) => {
+    const experimentId = row.dataset.expId;
+    const ownerForm = row.querySelector('form[data-exp-action="restore"]');
+    if (ownerForm && experimentId) {
+      ownerForm.classList.add('autosave-form');
+      ownerForm.setAttribute('data-exp-action', 'owner-update');
+      ownerForm.action = `/admin/experiments/${experimentId}/owner`;
+      const button = ownerForm.querySelector('button[type="submit"]');
+      if (button) button.remove();
+      bindAutosaveSelects(ownerForm);
+    }
+    const statusCell = row.querySelector('[data-exp-status-cell]');
+    if (statusCell && experimentId) {
+      statusCell.innerHTML = '';
+      statusCell.appendChild(buildArchiveForm(experimentId));
+      bindAjaxForms(statusCell);
+    }
+  };
+  const setExpTab = (tab) => {
+    expTabButtons.forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.expTab === tab);
+    });
+    document.querySelectorAll('tr[data-exp-status]').forEach((row) => {
+      const status = row.dataset.expStatus;
+      row.style.display = status === tab ? '' : 'none';
+    });
+  };
+  expTabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => setExpTab(btn.dataset.expTab || 'active'));
+  });
+  setExpTab('active');
 </script>

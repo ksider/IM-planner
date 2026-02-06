@@ -14,7 +14,14 @@ import {
   updateUser
 } from "../repos/users_repo.js";
 import { sendTempPasswordEmail } from "../services/email.js";
-import { listExperiments, updateExperimentOwner, restoreExperiment } from "../repos/experiments_repo.js";
+import {
+  listExperimentsWithMeta,
+  updateExperimentOwner,
+  restoreExperiment,
+  getExperiment,
+  deleteExperiment,
+  type ExperimentListRow
+} from "../repos/experiments_repo.js";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -30,7 +37,21 @@ export function createAdminRouter(db: Db) {
   router.get("/", (_req, res) => {
     const settings = getAdminSettings(db);
     const users = listUsers(db);
-    const experiments = listExperiments(db, true);
+    const experimentsRaw = listExperimentsWithMeta(db, true);
+    const experiments = experimentsRaw.map((exp: ExperimentListRow) => {
+      const summaryCount = Number(exp.qual_summary_count || 0);
+      const valueCount = Number(exp.qual_run_value_count || 0);
+      let status = "not_started";
+      let statusLabel = "Not started";
+      if (exp.status_done_manual === 1) {
+        status = "done";
+        statusLabel = "Done";
+      } else if (summaryCount > 0 || valueCount > 0) {
+        status = "in_progress";
+        statusLabel = "In progress";
+      }
+      return { ...exp, status, statusLabel };
+    });
     const notice = typeof _req.query.notice === "string" ? _req.query.notice : null;
     const error = typeof _req.query.error === "string" ? _req.query.error : null;
     res.render("admin", {
@@ -280,6 +301,40 @@ export function createAdminRouter(db: Db) {
       return res.json({ ok: true, message: "Experiment restored" });
     }
     return res.redirect("/admin?notice=Experiment restored");
+  });
+
+  router.post("/experiments/:id/delete", (req, res) => {
+    const experimentId = Number(req.params.id);
+    if (!Number.isFinite(experimentId)) {
+      if (wantsJson(req)) {
+        return res.status(400).json({ ok: false, message: "Invalid experiment" });
+      }
+      return res.redirect("/admin?error=Invalid experiment");
+    }
+    const experiment = getExperiment(db, experimentId);
+    if (!experiment) {
+      if (wantsJson(req)) {
+        return res.status(404).json({ ok: false, message: "Experiment not found" });
+      }
+      return res.redirect("/admin?error=Experiment not found");
+    }
+    if (!experiment.archived_at) {
+      if (wantsJson(req)) {
+        return res.status(400).json({ ok: false, message: "Experiment must be archived first" });
+      }
+      return res.redirect("/admin?error=Experiment must be archived first");
+    }
+    deleteExperiment(db, experimentId);
+    insertAudit(db, {
+      actorUserId: req.user?.id ?? null,
+      action: "admin.experiment.delete",
+      targetUserId: null,
+      detailsJson: JSON.stringify({ experiment_id: experimentId })
+    });
+    if (wantsJson(req)) {
+      return res.json({ ok: true, message: "Experiment deleted" });
+    }
+    return res.redirect("/admin?notice=Experiment deleted");
   });
 
   router.post("/users/:id/reset-password", async (req, res) => {
